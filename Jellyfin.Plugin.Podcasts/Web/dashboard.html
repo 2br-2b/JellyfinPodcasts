@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Podcasts</title>
+    <link rel="stylesheet" href="components/splashscreen/style.css" />
+    <style>
+        .podcast-container { max-width: 960px; margin: 0 auto; padding: 1em; }
+        .tab-bar { display: flex; border-bottom: 2px solid #444; margin-bottom: 1em; }
+        .tab-btn { background: none; border: none; color: #ccc; padding: .5em 1.2em; cursor: pointer; font-size: 1em; }
+        .tab-btn.active { color: #00a4dc; border-bottom: 2px solid #00a4dc; margin-bottom: -2px; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .card { background: #1e1e1e; border-radius: 6px; padding: 1em; margin-bottom: .8em; }
+        .badge { display: inline-block; background: #00a4dc; color: #fff; border-radius: 4px; padding: 2px 6px; font-size: .75em; }
+        .badge-cloud { background: #555; }
+        .btn { padding: .4em .9em; border-radius: 4px; border: none; cursor: pointer; font-size: .9em; }
+        .btn-primary { background: #00a4dc; color: #fff; }
+        .btn-danger { background: #c0392b; color: #fff; }
+        .btn-secondary { background: #444; color: #eee; }
+        input[type=text], input[type=url] { background: #2a2a2a; border: 1px solid #555; color: #eee; padding: .4em .6em; border-radius: 4px; width: 100%; box-sizing: border-box; margin-bottom: .5em; }
+        label { display: block; color: #aaa; margin-bottom: .2em; font-size: .85em; }
+        .meta { color: #888; font-size: .8em; }
+        .progress-bar { height: 4px; background: #333; border-radius: 2px; margin-top: .3em; }
+        .progress-bar-fill { height: 100%; background: #00a4dc; border-radius: 2px; }
+        #password-reveal { background: #111; border: 1px dashed #555; padding: 1em; border-radius: 4px; font-family: monospace; word-break: break-all; color: #0f0; display: none; }
+        .disk-usage { display: flex; align-items: center; gap: 1em; margin-bottom: 1em; }
+        .disk-bar { flex: 1; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
+        .disk-bar-fill { height: 100%; background: #00a4dc; border-radius: 5px; transition: width .3s; }
+        .setting-row { display: flex; align-items: center; gap: .8em; margin-bottom: .8em; }
+        .setting-row label { min-width: 220px; }
+        .setting-row input[type=number], .setting-row input[type=text] { width: 120px; }
+    </style>
+</head>
+<body>
+<div class="podcast-container">
+    <h2>Podcasts</h2>
+    <div class="tab-bar">
+        <button class="tab-btn active" data-tab="subscriptions">Subscriptions</button>
+        <button class="tab-btn" data-tab="cache">Cache</button>
+        <button class="tab-btn" data-tab="app-passwords">App Passwords</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+    </div>
+
+    <!-- Subscriptions Tab -->
+    <div id="tab-subscriptions" class="tab-panel active">
+        <div class="card">
+            <label>Add Podcast Feed URL</label>
+            <input type="url" id="new-feed-url" placeholder="https://example.com/feed.rss" />
+            <button class="btn btn-primary" id="btn-add-feed">Subscribe</button>
+        </div>
+        <button class="btn btn-secondary" id="btn-refresh-all" style="margin-bottom:1em">↻ Refresh All Feeds</button>
+        <div id="subscriptions-list"></div>
+    </div>
+
+    <!-- Cache Tab -->
+    <div id="tab-cache" class="tab-panel">
+        <div class="disk-usage">
+            <span id="disk-used-label">0 GB</span>
+            <div class="disk-bar"><div class="disk-bar-fill" id="disk-bar-fill" style="width:0%"></div></div>
+            <span id="disk-quota-label">0 GB quota</span>
+        </div>
+        <button class="btn btn-secondary" id="btn-evict" style="margin-bottom:1em">Run Eviction Now</button>
+        <div id="cache-list"></div>
+    </div>
+
+    <!-- App Passwords Tab -->
+    <div id="tab-app-passwords" class="tab-panel">
+        <div class="card">
+            <label>Label (e.g. "AntennaPod on Pixel 8")</label>
+            <input type="text" id="new-password-label" placeholder="Device label" />
+            <button class="btn btn-primary" id="btn-generate-password">Generate App Password</button>
+        </div>
+        <div id="password-reveal">
+            <p><strong>⚠ Save this password now — it will not be shown again.</strong></p>
+            <p id="reveal-server-url"></p>
+            <p>Username: <span id="reveal-username"></span></p>
+            <p>Password: <span id="reveal-password"></span></p>
+            <p>gpodder URL: <span id="reveal-gpodder-url"></span></p>
+            <p>OPA URL: <span id="reveal-opa-url"></span></p>
+        </div>
+        <div id="passwords-list" style="margin-top:1em"></div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="tab-panel">
+        <div class="setting-row">
+            <label>Max Cache Size (GB)</label>
+            <input type="number" id="setting-max-cache" min="1" max="10000" />
+        </div>
+        <div class="setting-row">
+            <label>Max Episodes Per Podcast (leave blank for no limit)</label>
+            <input type="number" id="setting-max-episodes" min="1" />
+        </div>
+        <div class="setting-row">
+            <label>Poll Interval (minutes)</label>
+            <input type="number" id="setting-poll-interval" min="5" max="1440" />
+        </div>
+        <div class="setting-row">
+            <label>Auto-Download Episode Count</label>
+            <input type="number" id="setting-auto-download" min="0" max="100" />
+        </div>
+        <div class="setting-row">
+            <label>Auto-Download New Episodes</label>
+            <input type="checkbox" id="setting-auto-download-enabled" />
+        </div>
+        <button class="btn btn-primary" id="btn-save-settings">Save Settings</button>
+        <span id="settings-saved" style="color:#0a0;margin-left:.8em;display:none">Saved!</span>
+    </div>
+</div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>
