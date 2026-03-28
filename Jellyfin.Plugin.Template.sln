@@ -6,6 +6,20 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "codegito.xyz.podcasts", "Je
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.Template.Tests", "Jellyfin.Plugin.Template.Tests\Jellyfin.Plugin.Template.Tests.csproj", "{B3C4D5E6-F7A8-4901-BCDE-F01234567890}"
 EndProject
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "jellyfin", "..\..\Applications\jellyfin\jellyfin.exe", "{263A3366-5A7C-04F9-DD66-6872AFDA06CB}"
+	ProjectSection(DebuggerProjectSystem) = preProject
+		PortSupplier = 00000000-0000-0000-0000-000000000000
+		Executable = C:\Users\abold\Applications\jellyfin\jellyfin.exe
+		RemoteMachine = LAPTOP-U711M1SM
+		StartingDirectory = C:\Users\abold\Applications\jellyfin
+		Environment = Default
+		LaunchingEngine = 00000000-0000-0000-0000-000000000000
+		UseLegacyDebugEngines = No
+		LaunchSQLEngine = No
+		AttachLaunchAction = No
+		IORedirection = Auto
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,8 +54,17 @@ Global
 		{B3C4D5E6-F7A8-4901-BCDE-F01234567890}.Release|x64.Build.0 = Release|Any CPU
 		{B3C4D5E6-F7A8-4901-BCDE-F01234567890}.Release|x86.ActiveCfg = Release|Any CPU
 		{B3C4D5E6-F7A8-4901-BCDE-F01234567890}.Release|x86.Build.0 = Release|Any CPU
+		{263A3366-5A7C-04F9-DD66-6872AFDA06CB}.Debug|Any CPU.ActiveCfg = Release|x64
+		{263A3366-5A7C-04F9-DD66-6872AFDA06CB}.Debug|x64.ActiveCfg = Release|x64
+		{263A3366-5A7C-04F9-DD66-6872AFDA06CB}.Debug|x86.ActiveCfg = Release|x64
+		{263A3366-5A7C-04F9-DD66-6872AFDA06CB}.Release|Any CPU.ActiveCfg = Release|x64
+		{263A3366-5A7C-04F9-DD66-6872AFDA06CB}.Release|x64.ActiveCfg = Release|x64
+		{263A3366-5A7C-04F9-DD66-6872AFDA06CB}.Release|x86.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {023484B4-0D81-48F6-8845-7976068E552C}
 	EndGlobalSection
 EndGlobal
