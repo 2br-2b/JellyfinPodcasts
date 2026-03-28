@@ -37,6 +37,10 @@ public class PodcastsDbContext : DbContext
             entity.Property(f => f.FeedUrl).IsRequired();
             entity.Property(f => f.Title).IsRequired();
             entity.Property(f => f.Description).IsRequired();
+            entity.Property(f => f.MediaType)
+                .HasConversion<string>()
+                .HasDefaultValue(PodcastMediaType.Audio)
+                .IsRequired();
         });
 
         modelBuilder.Entity<UserSubscription>(entity =>

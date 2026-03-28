@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Podcasts.FeedParser;
+using Jellyfin.Plugin.Template.Models;
 using Jellyfin.Plugin.Template.Services;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Providers;
@@ -16,24 +17,26 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.Template.Channels;
 
 /// <summary>
-/// Jellyfin channel that surfaces per-user podcast subscriptions.
+/// Shared base for audio and video podcast channels.
+/// Subclasses declare which <see cref="PodcastMediaType"/> they surface and supply the
+/// matching Jellyfin <see cref="InternalChannelFeatures"/>.
 /// </summary>
-public class PodcastChannel : IChannel, ISupportsLatestMedia
+public abstract class PodcastChannelBase : IChannel, ISupportsLatestMedia
 {
     private readonly ISubscriptionStore _subscriptionStore;
     private readonly RssFeedParser _feedParser;
-    private readonly ILogger<PodcastChannel> _logger;
+    private readonly ILogger _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PodcastChannel"/> class.
+    /// Initializes a new instance of the <see cref="PodcastChannelBase"/> class.
     /// </summary>
     /// <param name="subscriptionStore">User subscription store.</param>
     /// <param name="feedParser">RSS feed parser.</param>
     /// <param name="logger">Logger instance.</param>
-    public PodcastChannel(
+    protected PodcastChannelBase(
         ISubscriptionStore subscriptionStore,
         RssFeedParser feedParser,
-        ILogger<PodcastChannel> logger)
+        ILogger logger)
     {
         _subscriptionStore = subscriptionStore;
         _feedParser = feedParser;
@@ -41,10 +44,16 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
     }
 
     /// <inheritdoc />
-    public string Name => "Podcasts";
+    public abstract string Name { get; }
 
     /// <inheritdoc />
-    public string Description => "Per-user podcast subscriptions.";
+    public abstract string Description { get; }
+
+    /// <summary>
+    /// Gets the media type this channel surfaces (Audio or Video).
+    /// Used to filter feeds from the shared subscription store.
+    /// </summary>
+    protected abstract PodcastMediaType MediaType { get; }
 
     /// <inheritdoc />
     public string DataVersion => "1";
@@ -59,13 +68,7 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
     public bool IsEnabledFor(string userId) => true;
 
     /// <inheritdoc />
-    public InternalChannelFeatures GetChannelFeatures() => new()
-    {
-        MediaTypes = [ChannelMediaType.Audio],
-        ContentTypes = [ChannelMediaContentType.Podcast],
-        DefaultSortFields = [ChannelItemSortField.DateCreated],
-        SupportsSortOrderToggle = true,
-    };
+    public abstract InternalChannelFeatures GetChannelFeatures();
 
     /// <inheritdoc />
     public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
@@ -79,13 +82,11 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
         InternalChannelItemQuery query,
         CancellationToken cancellationToken)
     {
-        // Root view — list the user's subscribed feeds as folders.
         if (string.IsNullOrEmpty(query.FolderId))
         {
             return GetSubscribedFeedsAsItems(query.UserId);
         }
 
-        // Folder view — list episodes from the selected feed.
         return await GetEpisodesForFeedAsync(query.FolderId, cancellationToken).ConfigureAwait(false);
     }
 
@@ -99,7 +100,7 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
             return [];
         }
 
-        var feeds = _subscriptionStore.GetFeedsForUser(userId);
+        var feeds = GetFeedsForUser(userId);
         var allEpisodes = new List<ChannelItemInfo>();
 
         foreach (var feed in feeds)
@@ -120,7 +121,7 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
 
     private ChannelItemResult GetSubscribedFeedsAsItems(Guid userId)
     {
-        var feeds = _subscriptionStore.GetFeedsForUser(userId);
+        var feeds = GetFeedsForUser(userId);
 
         var items = feeds.Select(f => new ChannelItemInfo
         {
@@ -140,11 +141,12 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
         CancellationToken cancellationToken)
     {
         var feed = _subscriptionStore.GetAllFeeds()
-            .FirstOrDefault(f => string.Equals(f.Id, feedId, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(f => string.Equals(f.Id, feedId, StringComparison.OrdinalIgnoreCase)
+                              && f.MediaType == MediaType);
 
         if (feed is null)
         {
-            _logger.LogWarning("Feed {FeedId} not found in subscription store.", feedId);
+            _logger.LogWarning("Feed {FeedId} not found for media type {MediaType}.", feedId, MediaType);
             return new ChannelItemResult();
         }
 
@@ -158,45 +160,22 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
         return new ChannelItemResult { Items = items, TotalRecordCount = items.Count };
     }
 
-    private static IEnumerable<ChannelItemInfo> MapEpisodes(
-        IReadOnlyList<Jellyfin.Plugin.Podcasts.FeedParser.Models.ParsedEpisode> episodes,
-        string? fallbackImageUrl)
-    {
-        foreach (var ep in episodes)
-        {
-            var container = (ep.EnclosureType ?? string.Empty) switch
-            {
-                var t when t.Contains("mp3", StringComparison.OrdinalIgnoreCase) => "mp3",
-                var t when t.Contains("ogg", StringComparison.OrdinalIgnoreCase) => "ogg",
-                var t when t.Contains("aac", StringComparison.OrdinalIgnoreCase) => "aac",
-                var t when t.Contains("m4a", StringComparison.OrdinalIgnoreCase) => "m4a",
-                _ => "mp3",
-            };
+    /// <summary>
+    /// Returns the feeds the user is subscribed to that match this channel's <see cref="MediaType"/>.
+    /// </summary>
+    private List<PodcastFeed> GetFeedsForUser(Guid userId)
+        => _subscriptionStore.GetFeedsForUser(userId)
+            .Where(f => f.MediaType == MediaType)
+            .ToList();
 
-            yield return new ChannelItemInfo
-            {
-                Id = ep.Guid,
-                Name = ep.Title,
-                Overview = ep.Description,
-                ImageUrl = ep.ImageUrl ?? fallbackImageUrl,
-                Type = ChannelItemType.Media,
-                MediaType = ChannelMediaType.Audio,
-                ContentType = ChannelMediaContentType.Podcast,
-                PremiereDate = ep.PublishedAt,
-                RunTimeTicks = ep.DurationTicks,
-                MediaSources =
-                [
-                    new MediaSourceInfo
-                    {
-                        Id = ep.Guid,
-                        Path = ep.AudioUrl,
-                        Protocol = MediaProtocol.Http,
-                        Container = container,
-                        SupportsDirectStream = true,
-                        IsInfiniteStream = false,
-                    }
-                ],
-            };
-        }
-    }
+    /// <summary>
+    /// Maps parsed episodes to <see cref="ChannelItemInfo"/> objects.
+    /// Subclasses that need different mapping (e.g. video media sources) can override this.
+    /// </summary>
+    /// <param name="episodes">The parsed episodes to map.</param>
+    /// <param name="fallbackImageUrl">Image URL to use when the episode has no artwork.</param>
+    /// <returns>Sequence of channel item info objects ready for Jellyfin.</returns>
+    protected abstract IEnumerable<ChannelItemInfo> MapEpisodes(
+        IReadOnlyList<Jellyfin.Plugin.Podcasts.FeedParser.Models.ParsedEpisode> episodes,
+        string? fallbackImageUrl);
 }

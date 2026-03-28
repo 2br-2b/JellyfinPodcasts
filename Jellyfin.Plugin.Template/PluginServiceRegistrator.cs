@@ -32,6 +32,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         });
 
         serviceCollection.AddSingleton<ISubscriptionStore, SubscriptionStore>();
-        serviceCollection.AddSingleton<IChannel, PodcastChannel>();
+        serviceCollection.AddSingleton<IChannel, AudioPodcastChannel>();
+        serviceCollection.AddSingleton<IChannel, VideoPodcastChannel>();
     }
 }

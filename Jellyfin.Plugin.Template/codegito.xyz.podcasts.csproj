@@ -49,16 +49,16 @@
       <JellyfinPluginDir>$(LOCALAPPDATA)\jellyfin\plugins\Jellyfin.Plugin.Template</JellyfinPluginDir>
     </PropertyGroup>
     <MakeDir Directories="$(JellyfinPluginDir)" />
-    <!-- Copy all plugin-owned DLLs, excluding assemblies the Jellyfin host already provides -->
+    <!-- Copy all plugin-owned managed DLLs, excluding assemblies the Jellyfin host already provides.
+         e_sqlite3.dll is intentionally excluded: it is a native (unmanaged) DLL that Jellyfin's
+         PluginManager would mistakenly try to load as a .NET assembly, disabling the plugin.
+         Jellyfin ships its own e_sqlite3.dll which EF Core will find via the normal DLL search path. -->
     <ItemGroup>
       <_PluginDlls Include="$(OutputPath)*.dll"
         Exclude="$(OutputPath)MediaBrowser.*.dll;$(OutputPath)Microsoft.AspNetCore.*.dll;$(OutputPath)Microsoft.Extensions.*.dll;$(OutputPath)System.*.dll" />
-      <_NativeSqlite Include="$(OutputPath)runtimes\win-x64\native\e_sqlite3.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(_PluginDlls)" DestinationFolder="$(JellyfinPluginDir)" />
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb" DestinationFolder="$(JellyfinPluginDir)" Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" />
-    <MakeDir Directories="$(JellyfinPluginDir)\runtimes\win-x64\native" Condition="Exists('$(OutputPath)runtimes\win-x64\native\e_sqlite3.dll')" />
-    <Copy SourceFiles="@(_NativeSqlite)" DestinationFolder="$(JellyfinPluginDir)\runtimes\win-x64\native" Condition="Exists('$(OutputPath)runtimes\win-x64\native\e_sqlite3.dll')" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\meta.json" DestinationFolder="$(JellyfinPluginDir)" />
   </Target>
 

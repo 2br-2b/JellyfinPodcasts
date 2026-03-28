@@ -38,6 +38,12 @@ public class PodcastFeed
     public string? HomePageUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this is an audio podcast or a video podcast (vodcast).
+    /// Defaults to <see cref="PodcastMediaType.Audio"/>.
+    /// </summary>
+    public PodcastMediaType MediaType { get; set; } = PodcastMediaType.Audio;
+
+    /// <summary>
     /// Gets the subscriptions for this feed.
     /// </summary>
     public ICollection<UserSubscription> Subscriptions { get; init; } = [];

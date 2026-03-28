@@ -17,7 +17,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.Template.Tests.Channels;
 
-public class PodcastChannelTests
+public class AudioPodcastChannelTests
 {
     private static readonly Guid UserId = Guid.NewGuid();
 
@@ -28,6 +28,7 @@ public class PodcastChannelTests
         Title = $"Podcast {id}",
         Description = "A show.",
         ImageUrl = $"https://example.com/{id}/cover.jpg",
+        MediaType = PodcastMediaType.Audio,
     };
 
     private static RssFeedParser CreateParser(string xml)
@@ -39,8 +40,8 @@ public class PodcastChannelTests
         return new RssFeedParser(factory.Object, NullLogger<RssFeedParser>.Instance);
     }
 
-    private static PodcastChannel CreateChannel(ISubscriptionStore store, RssFeedParser parser)
-        => new(store, parser, NullLogger<PodcastChannel>.Instance);
+    private static AudioPodcastChannel CreateChannel(ISubscriptionStore store, RssFeedParser parser)
+        => new(store, parser, NullLogger<AudioPodcastChannel>.Instance);
 
     // ── Root view (no FolderId) ──────────────────────────────────────────────
 
@@ -66,6 +67,22 @@ public class PodcastChannelTests
     {
         var store = new Mock<ISubscriptionStore>();
         store.Setup(s => s.GetFeedsForUser(UserId)).Returns([]);
+
+        var channel = CreateChannel(store.Object, CreateParser("<rss><channel/></rss>"));
+        var result = await channel.GetChannelItems(
+            new InternalChannelItemQuery { UserId = UserId },
+            CancellationToken.None);
+
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task GetChannelItems_NoFolderId_VideoFeedsNotShown()
+    {
+        var videoFeed = MakeFeed("v1", "https://example.com/v1.rss");
+        videoFeed.MediaType = PodcastMediaType.Video;
+        var store = new Mock<ISubscriptionStore>();
+        store.Setup(s => s.GetFeedsForUser(UserId)).Returns([videoFeed]);
 
         var channel = CreateChannel(store.Object, CreateParser("<rss><channel/></rss>"));
         var result = await channel.GetChannelItems(
@@ -161,7 +178,7 @@ public class PodcastChannelTests
     {
         var store = new Mock<ISubscriptionStore>();
         var channel = CreateChannel(store.Object, CreateParser("<rss><channel/></rss>"));
-        Assert.Equal("Podcasts", channel.Name);
+        Assert.Equal("Audio Podcasts", channel.Name);
     }
 
     [Fact]
