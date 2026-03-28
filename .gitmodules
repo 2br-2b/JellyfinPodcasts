@@ -1,0 +1,3 @@
+[submodule "docs/jellyfin.org"]
+	path = docs/jellyfin.org
+	url = https://github.com/jellyfin/jellyfin.org
