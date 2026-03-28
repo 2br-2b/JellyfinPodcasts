@@ -1,5 +1,6 @@
 using System.IO;
 using Jellyfin.Plugin.Podcasts.FeedParser;
+using Jellyfin.Plugin.Template.Api.Auth;
 using Jellyfin.Plugin.Template.Channels;
 using Jellyfin.Plugin.Template.Data;
 using Jellyfin.Plugin.Template.Services;
@@ -32,6 +33,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         });
 
         serviceCollection.AddSingleton<ISubscriptionStore, SubscriptionStore>();
+        serviceCollection.AddSingleton<IAppPasswordStore, AppPasswordStore>();
+        serviceCollection.AddScoped<PodcastAuthorizationFilter>();
         serviceCollection.AddSingleton<IChannel, AudioPodcastChannel>();
         serviceCollection.AddSingleton<IChannel, VideoPodcastChannel>();
     }
