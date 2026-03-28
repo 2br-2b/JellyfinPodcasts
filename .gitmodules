@@ -7,3 +7,6 @@
 [submodule "docs/podcast-namespace"]
 	path = docs/podcast-namespace
 	url = https://github.com/Podcastindex-org/podcast-namespace
+[submodule "docs/open-podcast-api"]
+	path = docs/open-podcast-api
+	url = https://github.com/OpenPodcastAPI/api-specs
