@@ -30,4 +30,17 @@
     <EmbeddedResource Include="Configuration\configPage.html" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Jellyfin.Plugin.Podcasts.FeedParser\Jellyfin.Plugin.Podcasts.FeedParser.csproj" />
+  </ItemGroup>
+
+  <Target Name="DeployToLocalJellyfin" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <PropertyGroup>
+      <JellyfinPluginDir>$(LOCALAPPDATA)\jellyfin\plugins\Jellyfin.Plugin.Template</JellyfinPluginDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(JellyfinPluginDir)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(JellyfinPluginDir)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb" DestinationFolder="$(JellyfinPluginDir)" Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" />
+  </Target>
+
 </Project>

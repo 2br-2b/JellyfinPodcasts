@@ -4,3 +4,6 @@
 [submodule "docs/jellyfin"]
 	path = docs/jellyfin
 	url = https://github.com/jellyfin/jellyfin
+[submodule "docs/podcast-namespace"]
+	path = docs/podcast-namespace
+	url = https://github.com/Podcastindex-org/podcast-namespace
