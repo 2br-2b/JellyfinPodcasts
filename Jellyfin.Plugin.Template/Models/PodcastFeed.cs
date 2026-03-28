@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Jellyfin.Plugin.Template.Models;
 
 /// <summary>
@@ -34,4 +36,9 @@ public class PodcastFeed
     /// Gets or sets the podcast home page URL.
     /// </summary>
     public string? HomePageUrl { get; set; }
+
+    /// <summary>
+    /// Gets the subscriptions for this feed.
+    /// </summary>
+    public ICollection<UserSubscription> Subscriptions { get; init; } = [];
 }

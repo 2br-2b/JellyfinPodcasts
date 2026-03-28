@@ -1,155 +1,97 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
+using Jellyfin.Plugin.Template.Data;
 using Jellyfin.Plugin.Template.Models;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 
 namespace Jellyfin.Plugin.Template.Services;
 
 /// <summary>
-/// Persists podcast feeds and per-user subscriptions to JSON files in the plugin data folder.
+/// Persists podcast feeds and per-user subscriptions using SQLite via EF Core.
 /// </summary>
-/// <inheritdoc />
 public class SubscriptionStore : ISubscriptionStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
-    private readonly ILogger<SubscriptionStore> _logger;
-    private readonly string _feedsFilePath;
-    private readonly string _subscriptionsFilePath;
+    private readonly IDbContextFactory<PodcastsDbContext> _dbContextFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubscriptionStore"/> class.
+    /// Applies any pending migrations on first use.
     /// </summary>
-    /// <param name="logger">Logger instance.</param>
-    /// <param name="dataDir">Directory where subscription data files will be stored.</param>
-    public SubscriptionStore(ILogger<SubscriptionStore> logger, string dataDir)
+    /// <param name="dbContextFactory">The database context factory.</param>
+    public SubscriptionStore(IDbContextFactory<PodcastsDbContext> dbContextFactory)
     {
-        _logger = logger;
-        _feedsFilePath = Path.Combine(dataDir, "feeds.json");
-        _subscriptionsFilePath = Path.Combine(dataDir, "subscriptions.json");
+        _dbContextFactory = dbContextFactory;
+        using var ctx = dbContextFactory.CreateDbContext();
+        ctx.Database.Migrate();
     }
 
-    /// <summary>
-    /// Gets all known podcast feeds.
-    /// </summary>
-    /// <returns>All feeds.</returns>
+    /// <inheritdoc />
     public IReadOnlyList<PodcastFeed> GetAllFeeds()
     {
-        return Load<List<PodcastFeed>>(_feedsFilePath) ?? [];
+        using var ctx = _dbContextFactory.CreateDbContext();
+        return ctx.Feeds.ToList();
     }
 
-    /// <summary>
-    /// Gets the feeds a specific user is subscribed to.
-    /// </summary>
-    /// <param name="userId">The Jellyfin user ID.</param>
-    /// <returns>Feeds the user subscribes to.</returns>
+    /// <inheritdoc />
     public IReadOnlyList<PodcastFeed> GetFeedsForUser(Guid userId)
     {
-        var allFeeds = GetAllFeeds();
-        var subscriptions = GetAllSubscriptions();
-        var subscribedIds = subscriptions
+        using var ctx = _dbContextFactory.CreateDbContext();
+        return ctx.Subscriptions
             .Where(s => s.UserId == userId)
-            .Select(s => s.FeedId)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return allFeeds.Where(f => subscribedIds.Contains(f.Id)).ToList();
+            .Include(s => s.Feed)
+            .Select(s => s.Feed)
+            .ToList();
     }
 
-    /// <summary>
-    /// Adds a feed and subscribes the given user to it. If the feed already exists, only the subscription is added.
-    /// </summary>
-    /// <param name="userId">The Jellyfin user ID.</param>
-    /// <param name="feed">The feed to add.</param>
+    /// <inheritdoc />
     public void Subscribe(Guid userId, PodcastFeed feed)
     {
-        var feeds = LoadFeedsMutable();
-        if (!feeds.Any(f => string.Equals(f.Id, feed.Id, StringComparison.OrdinalIgnoreCase)))
+        using var ctx = _dbContextFactory.CreateDbContext();
+
+        if (!ctx.Feeds.Any(f => f.Id == feed.Id))
         {
-            feeds.Add(feed);
-            Save(_feedsFilePath, feeds);
+            ctx.Feeds.Add(feed);
         }
 
-        var subscriptions = GetAllSubscriptions();
-        bool alreadySubscribed = subscriptions.Any(s =>
-            s.UserId == userId &&
-            string.Equals(s.FeedId, feed.Id, StringComparison.OrdinalIgnoreCase));
-
-        if (!alreadySubscribed)
+        if (!ctx.Subscriptions.Any(s => s.UserId == userId && s.FeedId == feed.Id))
         {
-            subscriptions.Add(new UserSubscription { UserId = userId, FeedId = feed.Id });
-            Save(_subscriptionsFilePath, subscriptions);
+            ctx.Subscriptions.Add(new UserSubscription
+            {
+                UserId = userId,
+                FeedId = feed.Id,
+                DateAdded = DateTime.UtcNow,
+            });
         }
+
+        ctx.SaveChanges();
     }
 
-    /// <summary>
-    /// Removes a user's subscription to a feed. The feed record is also removed if no users remain subscribed.
-    /// </summary>
-    /// <param name="userId">The Jellyfin user ID.</param>
-    /// <param name="feedId">The feed ID to unsubscribe from.</param>
+    /// <inheritdoc />
     public void Unsubscribe(Guid userId, string feedId)
     {
-        var subscriptions = GetAllSubscriptions();
-        int removed = subscriptions.RemoveAll(s =>
-            s.UserId == userId &&
-            string.Equals(s.FeedId, feedId, StringComparison.OrdinalIgnoreCase));
+        using var ctx = _dbContextFactory.CreateDbContext();
 
-        if (removed > 0)
+        var subscription = ctx.Subscriptions
+            .FirstOrDefault(s => s.UserId == userId && s.FeedId == feedId);
+
+        if (subscription is null)
         {
-            Save(_subscriptionsFilePath, subscriptions);
+            return;
+        }
 
-            bool anyoneStillSubscribed = subscriptions.Any(s =>
-                string.Equals(s.FeedId, feedId, StringComparison.OrdinalIgnoreCase));
+        ctx.Subscriptions.Remove(subscription);
+        ctx.SaveChanges();
 
-            if (!anyoneStillSubscribed)
+        // Prune the feed if no subscribers remain.
+        if (!ctx.Subscriptions.Any(s => s.FeedId == feedId))
+        {
+            var feed = ctx.Feeds.Find(feedId);
+            if (feed is not null)
             {
-                var feeds = LoadFeedsMutable();
-                feeds.RemoveAll(f => string.Equals(f.Id, feedId, StringComparison.OrdinalIgnoreCase));
-                Save(_feedsFilePath, feeds);
+                ctx.Feeds.Remove(feed);
+                ctx.SaveChanges();
             }
-        }
-    }
-
-    private List<PodcastFeed> LoadFeedsMutable()
-    {
-        return Load<List<PodcastFeed>>(_feedsFilePath) ?? [];
-    }
-
-    private List<UserSubscription> GetAllSubscriptions()
-    {
-        return Load<List<UserSubscription>>(_subscriptionsFilePath) ?? [];
-    }
-
-    private T? Load<T>(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return default;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<T>(json, JsonOptions);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load {Path}", path);
-            return default;
-        }
-    }
-
-    private void Save<T>(string path, T data)
-    {
-        try
-        {
-            File.WriteAllText(path, JsonSerializer.Serialize(data, JsonOptions));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save {Path}", path);
         }
     }
 }

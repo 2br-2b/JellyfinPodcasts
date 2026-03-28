@@ -8,6 +8,8 @@
     <Nullable>enable</Nullable>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
     <CodeAnalysisRuleSet>../jellyfin.ruleset</CodeAnalysisRuleSet>
+    <!-- Copy private deps (EF Core, SQLite) to output so they ship with the plugin -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +18,14 @@
     </PackageReference>
     <PackageReference Include="Jellyfin.Model" Version="10.11.6">
       <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
 
@@ -39,9 +49,16 @@
       <JellyfinPluginDir>$(LOCALAPPDATA)\jellyfin\plugins\Jellyfin.Plugin.Template</JellyfinPluginDir>
     </PropertyGroup>
     <MakeDir Directories="$(JellyfinPluginDir)" />
-    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(JellyfinPluginDir)" />
+    <!-- Copy all plugin-owned DLLs, excluding assemblies the Jellyfin host already provides -->
+    <ItemGroup>
+      <_PluginDlls Include="$(OutputPath)*.dll"
+        Exclude="$(OutputPath)MediaBrowser.*.dll;$(OutputPath)Microsoft.AspNetCore.*.dll;$(OutputPath)Microsoft.Extensions.*.dll;$(OutputPath)System.*.dll" />
+      <_NativeSqlite Include="$(OutputPath)runtimes\win-x64\native\e_sqlite3.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PluginDlls)" DestinationFolder="$(JellyfinPluginDir)" />
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb" DestinationFolder="$(JellyfinPluginDir)" Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" />
-    <Copy SourceFiles="$(OutputPath)Jellyfin.Plugin.Podcasts.FeedParser.dll" DestinationFolder="$(JellyfinPluginDir)" Condition="Exists('$(OutputPath)Jellyfin.Plugin.Podcasts.FeedParser.dll')" />
+    <MakeDir Directories="$(JellyfinPluginDir)\runtimes\win-x64\native" Condition="Exists('$(OutputPath)runtimes\win-x64\native\e_sqlite3.dll')" />
+    <Copy SourceFiles="@(_NativeSqlite)" DestinationFolder="$(JellyfinPluginDir)\runtimes\win-x64\native" Condition="Exists('$(OutputPath)runtimes\win-x64\native\e_sqlite3.dll')" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\meta.json" DestinationFolder="$(JellyfinPluginDir)" />
   </Target>
 

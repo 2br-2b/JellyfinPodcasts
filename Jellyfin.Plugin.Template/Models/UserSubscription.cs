@@ -21,4 +21,9 @@ public class UserSubscription
     /// Gets or sets when the user added this subscription.
     /// </summary>
     public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Gets or sets the associated feed.
+    /// </summary>
+    public PodcastFeed Feed { get; set; } = null!;
 }
