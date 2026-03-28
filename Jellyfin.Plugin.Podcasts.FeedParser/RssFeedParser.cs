@@ -14,12 +14,13 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.Podcasts.FeedParser;
 
 /// <summary>
-/// Fetches and parses RSS podcast feeds.
+/// Fetches and parses RSS podcast feeds, including iTunes and Podcast Index namespace extensions.
 /// </summary>
 public class RssFeedParser
 {
     private static readonly XNamespace ItunesNs = "http://www.itunes.com/dtds/podcast-1.0.dtd";
     private static readonly XNamespace MediaNs = "http://search.yahoo.com/mrss/";
+    private static readonly XNamespace PodcastNs = "https://podcastindex.org/namespace/1.0";
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<RssFeedParser> _logger;
@@ -56,8 +57,13 @@ public class RssFeedParser
             return null;
         }
 
+        // Image priority: podcast:image (artwork) > itunes:image > rss image
         var feedImageUrl =
-            channel.Element(ItunesNs + "image")?.Attribute("href")?.Value
+            channel.Elements(PodcastNs + "image")
+                .FirstOrDefault(e => string.Equals(
+                    e.Attribute("purpose")?.Value, "artwork", StringComparison.OrdinalIgnoreCase))
+                ?.Attribute("href")?.Value
+            ?? channel.Element(ItunesNs + "image")?.Attribute("href")?.Value
             ?? channel.Element("image")?.Element("url")?.Value;
 
         return new ParsedFeed
@@ -66,6 +72,7 @@ public class RssFeedParser
             Description = channel.Element("description")?.Value ?? string.Empty,
             ImageUrl = feedImageUrl,
             HomePageUrl = channel.Element("link")?.Value,
+            Guid = channel.Element(PodcastNs + "guid")?.Value,
             Episodes = ParseEpisodes(channel, feedImageUrl),
         };
     }
@@ -86,7 +93,6 @@ public class RssFeedParser
             var guid = item.Element("guid")?.Value;
             if (string.IsNullOrWhiteSpace(guid))
             {
-                // Fall back to a hash of the audio URL so every episode still has a stable ID.
                 guid = FallbackId(audioUrl);
             }
 
@@ -98,6 +104,35 @@ public class RssFeedParser
                 pubDate = parsed;
             }
 
+            // Image priority: podcast:image (artwork) > itunes:image > media:thumbnail > feed fallback
+            var episodeImageUrl =
+                item.Elements(PodcastNs + "image")
+                    .FirstOrDefault(e => string.Equals(
+                        e.Attribute("purpose")?.Value, "artwork", StringComparison.OrdinalIgnoreCase))
+                    ?.Attribute("href")?.Value
+                ?? item.Element(ItunesNs + "image")?.Attribute("href")?.Value
+                ?? item.Element(MediaNs + "thumbnail")?.Attribute("url")?.Value
+                ?? feedImageUrl;
+
+            // Season: podcast:season preferred, fall back to itunes:season
+            var seasonEl = item.Element(PodcastNs + "season");
+            var seasonValueStr = seasonEl?.Value ?? item.Element(ItunesNs + "season")?.Value;
+            int? seasonNumber = null;
+            if (!string.IsNullOrEmpty(seasonValueStr) && int.TryParse(seasonValueStr, out var s))
+            {
+                seasonNumber = s;
+            }
+
+            // Episode number: podcast:episode preferred, fall back to itunes:episode
+            var episodeEl = item.Element(PodcastNs + "episode");
+            var episodeValueStr = episodeEl?.Value ?? item.Element(ItunesNs + "episode")?.Value;
+            double? episodeNumber = null;
+            if (!string.IsNullOrEmpty(episodeValueStr) &&
+                double.TryParse(episodeValueStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var epNum))
+            {
+                episodeNumber = epNum;
+            }
+
             episodes.Add(new ParsedEpisode
             {
                 Guid = guid,
@@ -107,15 +142,113 @@ public class RssFeedParser
                     ?? string.Empty,
                 AudioUrl = audioUrl,
                 EnclosureType = enclosure?.Attribute("type")?.Value,
-                ImageUrl = item.Element(ItunesNs + "image")?.Attribute("href")?.Value
-                    ?? item.Element(MediaNs + "thumbnail")?.Attribute("url")?.Value
-                    ?? feedImageUrl,
+                ImageUrl = episodeImageUrl,
                 PublishedAt = pubDate,
                 DurationTicks = ParseDurationTicks(item.Element(ItunesNs + "duration")?.Value),
+                EpisodeNumber = episodeNumber,
+                SeasonNumber = seasonNumber,
+                SeasonName = item.Element(PodcastNs + "season")?.Attribute("name")?.Value,
+                ChaptersUrl = item.Element(PodcastNs + "chapters")?.Attribute("url")?.Value,
+                Transcripts = ParseTranscripts(item),
+                AlternateEnclosures = ParseAlternateEnclosures(item),
+                People = ParsePeople(item),
             });
         }
 
         return episodes;
+    }
+
+    private static IReadOnlyList<ParsedTranscript> ParseTranscripts(XElement item)
+    {
+        var transcripts = new List<ParsedTranscript>();
+
+        foreach (var el in item.Elements(PodcastNs + "transcript"))
+        {
+            var url = el.Attribute("url")?.Value;
+            var type = el.Attribute("type")?.Value;
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(type))
+            {
+                continue;
+            }
+
+            transcripts.Add(new ParsedTranscript
+            {
+                Url = url,
+                Type = type,
+                Language = el.Attribute("language")?.Value,
+                Rel = el.Attribute("rel")?.Value,
+            });
+        }
+
+        return transcripts;
+    }
+
+    private static IReadOnlyList<ParsedAlternateEnclosure> ParseAlternateEnclosures(XElement item)
+    {
+        var enclosures = new List<ParsedAlternateEnclosure>();
+
+        foreach (var el in item.Elements(PodcastNs + "alternateEnclosure"))
+        {
+            var mimeType = el.Attribute("type")?.Value;
+            if (string.IsNullOrWhiteSpace(mimeType))
+            {
+                continue;
+            }
+
+            var httpSources = el.Elements(PodcastNs + "source")
+                .Select(s => s.Attribute("uri")?.Value)
+                .Where(uri => !string.IsNullOrWhiteSpace(uri) &&
+                              (uri!.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                               uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (httpSources.Count == 0)
+            {
+                continue;
+            }
+
+            double? bitrate = null;
+            var bitrateStr = el.Attribute("bitrate")?.Value;
+            if (!string.IsNullOrEmpty(bitrateStr) &&
+                double.TryParse(bitrateStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var br))
+            {
+                bitrate = br;
+            }
+
+            long? length = null;
+            var lengthStr = el.Attribute("length")?.Value;
+            if (!string.IsNullOrEmpty(lengthStr) &&
+                long.TryParse(lengthStr, out var len))
+            {
+                length = len;
+            }
+
+            enclosures.Add(new ParsedAlternateEnclosure
+            {
+                MimeType = mimeType,
+                Bitrate = bitrate,
+                Length = length,
+                IsDefault = string.Equals(el.Attribute("default")?.Value, "true", StringComparison.OrdinalIgnoreCase),
+                Title = el.Attribute("title")?.Value,
+                HttpSources = httpSources!,
+            });
+        }
+
+        return enclosures;
+    }
+
+    private static IReadOnlyList<ParsedPerson> ParsePeople(XElement item)
+    {
+        return item.Elements(PodcastNs + "person")
+            .Select(el => new ParsedPerson
+            {
+                Name = el.Value,
+                Role = el.Attribute("role")?.Value,
+                Group = el.Attribute("group")?.Value,
+                Href = el.Attribute("href")?.Value,
+                Img = el.Attribute("img")?.Value,
+            })
+            .ToList();
     }
 
     private async Task<XDocument?> FetchXmlAsync(string url, CancellationToken cancellationToken)

@@ -20,7 +20,7 @@ namespace Jellyfin.Plugin.Template.Channels;
 /// </summary>
 public class PodcastChannel : IChannel, ISupportsLatestMedia
 {
-    private readonly SubscriptionStore _subscriptionStore;
+    private readonly ISubscriptionStore _subscriptionStore;
     private readonly RssFeedParser _feedParser;
     private readonly ILogger<PodcastChannel> _logger;
 
@@ -31,7 +31,7 @@ public class PodcastChannel : IChannel, ISupportsLatestMedia
     /// <param name="feedParser">RSS feed parser.</param>
     /// <param name="logger">Logger instance.</param>
     public PodcastChannel(
-        SubscriptionStore subscriptionStore,
+        ISubscriptionStore subscriptionStore,
         RssFeedParser feedParser,
         ILogger<PodcastChannel> logger)
     {

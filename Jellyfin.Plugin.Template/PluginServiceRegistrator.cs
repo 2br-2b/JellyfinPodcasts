@@ -18,7 +18,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<RssFeedParser>();
-        serviceCollection.AddSingleton<SubscriptionStore>();
+        serviceCollection.AddSingleton<ISubscriptionStore>(sp => new SubscriptionStore(
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionStore>>(),
+            Plugin.Instance!.DataFolderPath));
         serviceCollection.AddSingleton<IChannel, PodcastChannel>();
     }
 }

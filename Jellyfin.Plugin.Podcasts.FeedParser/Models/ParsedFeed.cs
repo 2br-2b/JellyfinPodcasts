@@ -28,6 +28,11 @@ public class ParsedFeed
     public string? HomePageUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the unique identifier for this feed from the <c>podcast:guid</c> element, if present.
+    /// </summary>
+    public string? Guid { get; set; }
+
+    /// <summary>
     /// Gets or sets the episodes contained in this feed.
     /// </summary>
     public IReadOnlyList<ParsedEpisode> Episodes { get; set; } = [];

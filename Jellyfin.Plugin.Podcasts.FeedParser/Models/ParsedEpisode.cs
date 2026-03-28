@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Jellyfin.Plugin.Podcasts.FeedParser.Models;
 
@@ -24,12 +25,12 @@ public class ParsedEpisode
     public string Description { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the direct URL to the audio enclosure.
+    /// Gets or sets the direct URL to the primary audio enclosure.
     /// </summary>
     public string AudioUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the MIME type of the audio enclosure (e.g. "audio/mpeg").
+    /// Gets or sets the MIME type of the primary audio enclosure (e.g. "audio/mpeg").
     /// </summary>
     public string? EnclosureType { get; set; }
 
@@ -47,4 +48,41 @@ public class ParsedEpisode
     /// Gets or sets the episode duration in ticks, or null if not specified.
     /// </summary>
     public long? DurationTicks { get; set; }
+
+    // ── Podcast Index namespace fields ──────────────────────────────────────
+
+    /// <summary>
+    /// Gets or sets the episode number from <c>podcast:episode</c>.
+    /// </summary>
+    public double? EpisodeNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the season number from <c>podcast:season</c>.
+    /// </summary>
+    public int? SeasonNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the season name from the <c>name</c> attribute of <c>podcast:season</c>.
+    /// </summary>
+    public string? SeasonName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the URL of the chapters JSON file from <c>podcast:chapters</c>.
+    /// </summary>
+    public string? ChaptersUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the transcripts from <c>podcast:transcript</c> elements.
+    /// </summary>
+    public IReadOnlyList<ParsedTranscript> Transcripts { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the alternate enclosures from <c>podcast:alternateEnclosure</c> elements.
+    /// </summary>
+    public IReadOnlyList<ParsedAlternateEnclosure> AlternateEnclosures { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the people credited in <c>podcast:person</c> elements.
+    /// </summary>
+    public IReadOnlyList<ParsedPerson> People { get; set; } = [];
 }

@@ -11,7 +11,8 @@ namespace Jellyfin.Plugin.Template.Services;
 /// <summary>
 /// Persists podcast feeds and per-user subscriptions to JSON files in the plugin data folder.
 /// </summary>
-public class SubscriptionStore
+/// <inheritdoc />
+public class SubscriptionStore : ISubscriptionStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -23,13 +24,10 @@ public class SubscriptionStore
     /// Initializes a new instance of the <see cref="SubscriptionStore"/> class.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
-    public SubscriptionStore(ILogger<SubscriptionStore> logger)
+    /// <param name="dataDir">Directory where subscription data files will be stored.</param>
+    public SubscriptionStore(ILogger<SubscriptionStore> logger, string dataDir)
     {
         _logger = logger;
-
-        var dataDir = Plugin.Instance?.DataFolderPath
-            ?? throw new InvalidOperationException("Plugin instance is not initialized.");
-
         _feedsFilePath = Path.Combine(dataDir, "feeds.json");
         _subscriptionsFilePath = Path.Combine(dataDir, "subscriptions.json");
     }

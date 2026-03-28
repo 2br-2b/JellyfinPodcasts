@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Jellyfin.Plugin.Template\codegito.xyz.podcasts.csproj" />
+    <ProjectReference Include="..\Jellyfin.Plugin.Podcasts.FeedParser\Jellyfin.Plugin.Podcasts.FeedParser.csproj" />
   </ItemGroup>
 
 </Project>
