@@ -1,0 +1,12 @@
+{
+  "category": "General",
+  "changelog": "Initial release",
+  "description": "Podcast channel support for Jellyfin",
+  "guid": "22395da6-06bf-4fb0-aa05-2f44881361f8",
+  "name": "Jellyfin Podcasts",
+  "overview": "Add podcast channel support to Jellyfin",
+  "owner": "codegito",
+  "targetAbi": "10.11.0.0",
+  "timestamp": "2026-01-01T00:00:00.0000000Z",
+  "version": "1.0.0.0"
+}

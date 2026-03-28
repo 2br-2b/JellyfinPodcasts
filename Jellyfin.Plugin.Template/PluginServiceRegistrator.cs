@@ -1,6 +1,8 @@
+using System.IO;
 using Jellyfin.Plugin.Podcasts.FeedParser;
 using Jellyfin.Plugin.Template.Channels;
 using Jellyfin.Plugin.Template.Services;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Plugins;
@@ -18,9 +20,14 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<RssFeedParser>();
-        serviceCollection.AddSingleton<ISubscriptionStore>(sp => new SubscriptionStore(
-            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionStore>>(),
-            Plugin.Instance!.DataFolderPath));
+        serviceCollection.AddSingleton<ISubscriptionStore>(sp =>
+        {
+            var appPaths = sp.GetRequiredService<IApplicationPaths>();
+            var dataDir = Path.Combine(appPaths.DataPath, "podcasts");
+            return new SubscriptionStore(
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionStore>>(),
+                dataDir);
+        });
         serviceCollection.AddSingleton<IChannel, PodcastChannel>();
     }
 }
