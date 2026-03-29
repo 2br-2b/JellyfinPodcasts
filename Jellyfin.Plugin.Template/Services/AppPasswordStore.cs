@@ -28,7 +28,7 @@ public class AppPasswordStore : IAppPasswordStore
 
     /// <inheritdoc />
     public async Task<(string Token, AppPassword Password)> CreateAsync(
-        Guid userId, string label, CancellationToken ct = default)
+        Guid userId, string label, string kind, CancellationToken ct = default)
     {
         var bytes = new byte[32];
         RandomNumberGenerator.Fill(bytes);
@@ -40,6 +40,7 @@ public class AppPasswordStore : IAppPasswordStore
             Id = Guid.NewGuid(),
             UserId = userId,
             Label = label,
+            Kind = kind,
             CreatedAt = DateTime.UtcNow,
         };
         password.TokenHash = PasswordHasher.HashPassword(password, token);
@@ -82,12 +83,13 @@ public class AppPasswordStore : IAppPasswordStore
     }
 
     /// <inheritdoc />
-    public async Task<AppPassword?> ValidateTokenAsync(string token, CancellationToken ct = default)
+    public async Task<AppPassword?> ValidateTokenAsync(string token, string? kind = null, CancellationToken ct = default)
     {
         await using var ctx = await _dbContextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
         var passwords = await ctx.AppPasswords.ToListAsync(ct).ConfigureAwait(false);
         var password = passwords.Find(p =>
-            PasswordHasher.VerifyHashedPassword(p, p.TokenHash, token) != PasswordVerificationResult.Failed);
+            (kind is null || string.Equals(p.Kind, kind, StringComparison.OrdinalIgnoreCase))
+            && PasswordHasher.VerifyHashedPassword(p, p.TokenHash, token) != PasswordVerificationResult.Failed);
 
         if (password is null)
         {

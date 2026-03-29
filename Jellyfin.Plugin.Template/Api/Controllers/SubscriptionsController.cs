@@ -9,6 +9,8 @@ using Jellyfin.Plugin.Template.Api.Models;
 using Jellyfin.Plugin.Template.Models;
 using Jellyfin.Plugin.Template.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Template.Api.Controllers;
 
@@ -21,16 +23,22 @@ namespace Jellyfin.Plugin.Template.Api.Controllers;
 [Produces("application/json")]
 public class SubscriptionsController : ControllerBase
 {
-    private readonly RssFeedParser _feedParser;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ISubscriptionStore _subscriptionStore;
+    private readonly ILogger<SubscriptionsController> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SubscriptionsController"/> class.</summary>
-    /// <param name="feedParser">The RSS feed parser.</param>
+    /// <param name="serviceScopeFactory">Factory for creating background work scopes.</param>
     /// <param name="subscriptionStore">The subscription store.</param>
-    public SubscriptionsController(RssFeedParser feedParser, ISubscriptionStore subscriptionStore)
+    /// <param name="logger">The controller logger.</param>
+    public SubscriptionsController(
+        IServiceScopeFactory serviceScopeFactory,
+        ISubscriptionStore subscriptionStore,
+        ILogger<SubscriptionsController> logger)
     {
-        _feedParser = feedParser;
+        _serviceScopeFactory = serviceScopeFactory;
         _subscriptionStore = subscriptionStore;
+        _logger = logger;
     }
 
     /// <summary>Returns the authenticated user's subscriptions.</summary>
@@ -94,27 +102,26 @@ public class SubscriptionsController : ControllerBase
                 continue;
             }
 
-            var parsedFeed = await _feedParser.ParseAsync(item.FeedUrl, cancellationToken).ConfigureAwait(false);
             var guid = !string.IsNullOrWhiteSpace(item.Guid)
                 ? item.Guid
-                : !string.IsNullOrWhiteSpace(parsedFeed?.Guid)
-                    ? parsedFeed.Guid
-                    : Guid.NewGuid().ToString();
+                : Guid.NewGuid().ToString();
 
             var feed = new PodcastFeed
             {
                 Id = guid!,
                 FeedUrl = item.FeedUrl,
-                Title = parsedFeed?.Title ?? item.FeedUrl,
-                Description = parsedFeed?.Description ?? string.Empty,
-                ImageUrl = parsedFeed?.ImageUrl,
-                HomePageUrl = parsedFeed?.HomePageUrl,
+                Title = item.FeedUrl,
+                Description = string.Empty,
             };
 
             var subscription = await _subscriptionStore
                 .UpsertSubscriptionAsync(userId, feed, cancellationToken)
                 .ConfigureAwait(false);
             successes.Add(MapSubscription(subscription));
+
+            _ = Task.Run(
+                () => FetchAndUpdateFeedAsync(userId, item.FeedUrl, subscription.FeedId),
+                CancellationToken.None);
         }
 
         return Ok(new SubscriptionBatchResponse
@@ -151,7 +158,7 @@ public class SubscriptionsController : ControllerBase
             return StatusCode(410, new { code = 410, message = "Subscription has been deleted" });
         }
 
-        return Ok(MapSubscription(requested, latest.FeedId));
+        return Ok(MapSubscription(requested, latest));
     }
 
     /// <summary>Updates a single subscription entry.</summary>
@@ -207,7 +214,7 @@ public class SubscriptionsController : ControllerBase
         {
             NewFeedUrl = request.NewFeedUrl,
             IsSubscribed = request.IsSubscribed,
-            SubscriptionChanged = updated.SubscriptionChanged,
+            SubscriptionChanged = request.IsSubscribed.HasValue ? updated.SubscriptionChanged : null,
             GuidChanged = updated.GuidChanged,
             NewGuid = request.NewGuid,
         });
@@ -256,15 +263,66 @@ public class SubscriptionsController : ControllerBase
         return $"{Request.Path}?{string.Join("&", queryParts)}";
     }
 
-    private static SubscriptionResponse MapSubscription(UserSubscription subscription, string? latestGuid = null)
+    private static SubscriptionResponse MapSubscription(UserSubscription subscription, UserSubscription? latest = null)
         => new()
         {
             FeedUrl = subscription.Feed.FeedUrl,
             Guid = subscription.FeedId,
             IsSubscribed = subscription.IsSubscribed,
             SubscriptionChanged = subscription.SubscriptionChanged,
-            GuidChanged = subscription.GuidChanged,
-            NewGuid = latestGuid != subscription.FeedId ? latestGuid ?? subscription.NewGuid : subscription.NewGuid,
+            GuidChanged = (latest ?? subscription).GuidChanged,
+            NewGuid = latest is not null && latest.FeedId != subscription.FeedId ? latest.FeedId : subscription.NewGuid,
             Deleted = subscription.Deleted,
         };
+
+    private async Task FetchAndUpdateFeedAsync(Guid userId, string feedUrl, string initialFeedId)
+    {
+        try
+        {
+            using var scope = _serviceScopeFactory.CreateScope();
+            var feedParser = scope.ServiceProvider.GetRequiredService<RssFeedParser>();
+            var subscriptionStore = scope.ServiceProvider.GetRequiredService<ISubscriptionStore>();
+
+            var parsedFeed = await feedParser.ParseAsync(feedUrl, CancellationToken.None).ConfigureAwait(false);
+            if (parsedFeed is null)
+            {
+                return;
+            }
+
+            var resolvedFeedId = !string.IsNullOrWhiteSpace(parsedFeed.Guid)
+                ? parsedFeed.Guid
+                : initialFeedId;
+
+            if (!string.Equals(resolvedFeedId, initialFeedId, StringComparison.Ordinal))
+            {
+                await subscriptionStore
+                    .PatchSubscriptionAsync(
+                        userId,
+                        initialFeedId,
+                        null,
+                        resolvedFeedId,
+                        null,
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+
+            await subscriptionStore.UpdateFeedMetadataAsync(
+                    resolvedFeedId,
+                    new PodcastFeed
+                    {
+                        Id = resolvedFeedId,
+                        FeedUrl = feedUrl,
+                        Title = parsedFeed.Title ?? feedUrl,
+                        Description = parsedFeed.Description ?? string.Empty,
+                        ImageUrl = parsedFeed.ImageUrl,
+                        HomePageUrl = parsedFeed.HomePageUrl,
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh feed metadata for {FeedUrl}", feedUrl);
+        }
+    }
 }

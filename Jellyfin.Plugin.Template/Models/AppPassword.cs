@@ -14,6 +14,9 @@ public class AppPassword
     /// <summary>Gets or sets the human-readable label (e.g. "AntennaPod on Pixel 8").</summary>
     public string Label { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the app password kind.</summary>
+    public string Kind { get; set; } = AppPasswordKinds.OpenPodcastApi;
+
     /// <summary>Gets or sets the SHA-256 hex digest of the plaintext token.</summary>
     public string TokenHash { get; set; } = string.Empty;
 

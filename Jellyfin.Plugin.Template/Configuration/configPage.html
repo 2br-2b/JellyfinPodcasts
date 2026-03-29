@@ -2,77 +2,62 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Template</title>
+    <title>Jellyfin Podcasts</title>
 </head>
 <body>
-    <div id="TemplateConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div id="PodcastsConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button">
         <div data-role="content">
             <div class="content-primary">
-                <form id="TemplateConfigForm">
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="Options">Several Options</label>
-                        <select is="emby-select" id="Options" name="Options" class="emby-select-withcolor emby-select">
-                            <option id="optOneOption" value="OneOption">One Option</option>
-                            <option id="optAnotherOption" value="AnotherOption">Another Option</option>
-                        </select>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="AnInteger">An Integer</label>
-                        <input id="AnInteger" name="AnInteger" type="number" is="emby-input" min="0" />
-                        <div class="fieldDescription">A Description</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="TrueFalseSetting" name="TrueFalseCheckBox" type="checkbox" is="emby-checkbox" />
-                            <span>A Checkbox</span>
-                        </label>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="AString">A String</label>
-                        <input id="AString" name="AString" type="text" is="emby-input" />
-                        <div class="fieldDescription">Another Description</div>
-                    </div>
+                <style>
+                    #PodcastsConfigPage .podcastsCard {
+                        background: rgba(255, 255, 255, 0.03);
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-radius: 14px;
+                        margin-bottom: 1.5em;
+                        padding: 1.25em;
+                    }
+
+                    #PodcastsConfigPage .podcastsMuted {
+                        opacity: 0.75;
+                    }
+
+                    #PodcastsConfigPage code {
+                        overflow-wrap: anywhere;
+                    }
+                </style>
+
+                <div class="verticalSection">
+                    <h1>Jellyfin Podcasts</h1>
+                    <p class="podcastsMuted">Podcast subscriptions are managed from the user-facing podcasts page.</p>
+                </div>
+
+                <div class="podcastsCard">
+                    <h2>Open Podcasts</h2>
+                    <p>Use the button below to open the podcasts page inside the Jellyfin web app.</p>
                     <div>
-                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
-                            <span>Save</span>
+                        <button id="OpenPodcastsPageButton" is="emby-button" type="button" class="raised button-submit">
+                            <span>Open Podcasts</span>
                         </button>
                     </div>
-                </form>
+                </div>
+
+                <div class="podcastsCard">
+                    <h2>Direct URL</h2>
+                    <p class="podcastsMuted">If the sidebar link is not visible, signed-in users can open podcasts directly at:</p>
+                    <code id="PodcastsDirectUrl"></code>
+                </div>
             </div>
         </div>
         <script type="text/javascript">
-            var TemplateConfig = {
-                pluginUniqueId: 'eb5d7894-8eef-4b36-aa6f-5d124e828ce1'
-            };
+            (function () {
+                var directRoute = '/web/podcasts';
 
-            document.querySelector('#TemplateConfigPage')
-                .addEventListener('pageshow', function() {
-                    Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
-                        document.querySelector('#Options').value = config.Options;
-                        document.querySelector('#AnInteger').value = config.AnInteger;
-                        document.querySelector('#TrueFalseSetting').checked = config.TrueFalseSetting;
-                        document.querySelector('#AString').value = config.AString;
-                        Dashboard.hideLoadingMsg();
+                document.querySelector('#PodcastsDirectUrl').textContent = window.location.origin + directRoute;
+                document.querySelector('#OpenPodcastsPageButton')
+                    .addEventListener('click', function () {
+                        window.location.href = directRoute;
                     });
-                });
-
-            document.querySelector('#TemplateConfigForm')
-                .addEventListener('submit', function(e) {
-                Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
-                    config.Options = document.querySelector('#Options').value;
-                    config.AnInteger = document.querySelector('#AnInteger').value;
-                    config.TrueFalseSetting = document.querySelector('#TrueFalseSetting').checked;
-                    config.AString = document.querySelector('#AString').value;
-                    ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
-                        Dashboard.processPluginConfigurationUpdateResult(result);
-                    });
-                });
-
-                e.preventDefault();
-                return false;
-            });
+            })();
         </script>
     </div>
 </body>

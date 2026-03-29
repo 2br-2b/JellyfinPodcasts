@@ -7,6 +7,7 @@ using Jellyfin.Plugin.Template.Models;
 using Jellyfin.Plugin.Template.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Jellyfin.Plugin.Template.Tests.Services;
@@ -153,7 +154,7 @@ public class SubscriptionStoreTests : IDisposable
     private static SubscriptionStore CreateStore(SqliteConnection connection)
     {
         var factory = new SharedConnectionDbContextFactory(connection);
-        return new SubscriptionStore(factory);
+        return new SubscriptionStore(factory, NullLogger<SubscriptionStore>.Instance);
     }
 
     private sealed class SharedConnectionDbContextFactory : IDbContextFactory<PodcastsDbContext>

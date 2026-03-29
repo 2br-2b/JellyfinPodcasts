@@ -117,4 +117,14 @@ public interface ISubscriptionStore
     /// <returns>The latest subscription in the chain when found; otherwise <c>null</c>.</returns>
     Task<UserSubscription?> GetLatestSubscriptionAsync(
         Guid userId, string feedId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates the metadata of a feed record from a trusted server-side source (e.g. a background RSS fetch).
+    /// Unlike user-initiated upserts, this path is allowed to overwrite shared feed metadata.
+    /// </summary>
+    /// <param name="feedId">The ID of the feed record to update.</param>
+    /// <param name="metadata">The fresh metadata parsed from the RSS feed.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task that completes when the feed metadata update finishes.</returns>
+    Task UpdateFeedMetadataAsync(string feedId, PodcastFeed metadata, CancellationToken ct = default);
 }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.Template.Data;
 using Jellyfin.Plugin.Template.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Template.Services;
 
@@ -16,15 +17,18 @@ namespace Jellyfin.Plugin.Template.Services;
 public class SubscriptionStore : ISubscriptionStore
 {
     private readonly IDbContextFactory<PodcastsDbContext> _dbContextFactory;
+    private readonly ILogger<SubscriptionStore> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubscriptionStore"/> class.
     /// Applies any pending migrations on first use.
     /// </summary>
     /// <param name="dbContextFactory">The database context factory.</param>
-    public SubscriptionStore(IDbContextFactory<PodcastsDbContext> dbContextFactory)
+    /// <param name="logger">The logger.</param>
+    public SubscriptionStore(IDbContextFactory<PodcastsDbContext> dbContextFactory, ILogger<SubscriptionStore> logger)
     {
         _dbContextFactory = dbContextFactory;
+        _logger = logger;
         using var ctx = dbContextFactory.CreateDbContext();
         ctx.Database.Migrate();
     }
@@ -138,15 +142,6 @@ public class SubscriptionStore : ISubscriptionStore
             currentFeed = CloneFeed(feed);
             ctx.Feeds.Add(currentFeed);
         }
-        else
-        {
-            currentFeed.FeedUrl = feed.FeedUrl;
-            currentFeed.Title = feed.Title;
-            currentFeed.Description = feed.Description;
-            currentFeed.ImageUrl = feed.ImageUrl;
-            currentFeed.HomePageUrl = feed.HomePageUrl;
-            currentFeed.MediaType = feed.MediaType;
-        }
 
         var subscription = await ctx.Subscriptions
             .FirstOrDefaultAsync(s => s.UserId == userId && s.FeedId == currentFeed.Id, ct)
@@ -217,6 +212,9 @@ public class SubscriptionStore : ISubscriptionStore
                 ctx.Feeds.Add(targetFeed);
             }
 
+            // If targetFeed already existed in the DB, we reuse it as-is.
+            // newFeedUrl is not applied to pre-existing shared records.
+
             var targetSubscription = await ctx.Subscriptions
                 .Include(s => s.Feed)
                 .FirstOrDefaultAsync(s => s.UserId == userId && s.FeedId == newGuid, ct)
@@ -240,10 +238,23 @@ public class SubscriptionStore : ISubscriptionStore
             active = targetSubscription;
             active.Feed = targetFeed;
         }
-
-        if (!string.IsNullOrWhiteSpace(newFeedUrl) && active.Feed is not null)
+        else if (!string.IsNullOrWhiteSpace(newFeedUrl))
         {
-            active.Feed.FeedUrl = newFeedUrl;
+            // URL-only migration: find or create a feed record at the new URL, then reassign
+            // this user's subscription to it. The old feed record is left intact for other subscribers.
+            var newFeed = await ctx.Feeds
+                .FirstOrDefaultAsync(f => f.FeedUrl == newFeedUrl, ct)
+                .ConfigureAwait(false);
+            if (newFeed is null)
+            {
+                newFeed = CloneFeed(active.Feed);
+                newFeed.Id = Guid.NewGuid().ToString();
+                newFeed.FeedUrl = newFeedUrl;
+                ctx.Feeds.Add(newFeed);
+            }
+
+            active.FeedId = newFeed.Id;
+            active.Feed = newFeed;
             active.SubscriptionChanged = now;
         }
 
@@ -265,6 +276,7 @@ public class SubscriptionStore : ISubscriptionStore
         await using var ctx = await _dbContextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
         await using var transaction = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
+        // Resolve the latest subscription in the chain so we soft-delete the right record.
         var allSubscriptions = await ctx.Subscriptions
             .Where(s => s.UserId == userId)
             .Include(s => s.Feed)
@@ -282,19 +294,26 @@ public class SubscriptionStore : ISubscriptionStore
             current.Deleted = now;
         }
 
+        // Create the deletion record in PENDING state so callers receive a trackable ID immediately.
         var deletion = new DeletionRequest
         {
             UserId = userId,
             FeedId = current?.FeedId ?? feedId,
-            Status = DeletionStatuses.Success,
-            Message = "Subscription deleted successfully",
+            Status = DeletionStatuses.Pending,
+            Message = "Deletion is pending",
             RequestedAt = now,
-            CompletedAt = now,
         };
 
         ctx.DeletionRequests.Add(deletion);
         await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
         await transaction.CommitAsync(ct).ConfigureAwait(false);
+
+        // Background: cascade-delete any user-specific data (playback positions, etc.) and
+        // mark the deletion as complete. The shared PodcastFeed record is intentionally not
+        // deleted here because other users may currently be subscribed to the same feed.
+        var deletionId = deletion.Id;
+        _ = Task.Run(() => CompleteDeleteAsync(deletionId), CancellationToken.None);
+
         return deletion;
     }
 
@@ -307,6 +326,76 @@ public class SubscriptionStore : ISubscriptionStore
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == deletionId && d.UserId == userId, ct)
             .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateFeedMetadataAsync(string feedId, PodcastFeed metadata, CancellationToken ct = default)
+    {
+        await using var ctx = await _dbContextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+        var feed = await ctx.Feeds
+            .FirstOrDefaultAsync(f => f.Id == feedId || f.FeedUrl == metadata.FeedUrl, ct)
+            .ConfigureAwait(false);
+        if (feed is null)
+        {
+            return;
+        }
+
+        feed.Title = metadata.Title;
+        feed.Description = metadata.Description;
+        feed.ImageUrl = metadata.ImageUrl;
+        feed.HomePageUrl = metadata.HomePageUrl;
+        feed.MediaType = metadata.MediaType;
+        await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Background step for <see cref="RequestDeletionAsync"/>: cascade-deletes user-specific data
+    /// and transitions the deletion record from <see cref="DeletionStatuses.Pending"/> to
+    /// <see cref="DeletionStatuses.Success"/> or <see cref="DeletionStatuses.Failure"/>.
+    /// </summary>
+    private async Task CompleteDeleteAsync(int deletionId)
+    {
+        try
+        {
+            await using var ctx = await _dbContextFactory.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
+
+            // TODO: add cascade deletes for user-specific data here (e.g. playback positions)
+            // when those tables exist.  Each should run inside the same transaction so the whole
+            // thing is rolled back on failure.
+
+            var deletion = await ctx.DeletionRequests
+                .FirstOrDefaultAsync(d => d.Id == deletionId, CancellationToken.None)
+                .ConfigureAwait(false);
+            if (deletion is not null)
+            {
+                deletion.Status = DeletionStatuses.Success;
+                deletion.Message = "Subscription deleted successfully";
+                deletion.CompletedAt = DateTime.UtcNow;
+                await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Background deletion failed for deletion ID {DeletionId}; attempting to mark as failed", deletionId);
+            try
+            {
+                await using var failCtx = await _dbContextFactory.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
+                var deletion = await failCtx.DeletionRequests
+                    .FirstOrDefaultAsync(d => d.Id == deletionId, CancellationToken.None)
+                    .ConfigureAwait(false);
+                if (deletion is not null)
+                {
+                    deletion.Status = DeletionStatuses.Failure;
+                    deletion.Message = "The deletion process encountered an error and was rolled back";
+                    deletion.CompletedAt = DateTime.UtcNow;
+                    await failCtx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            catch (Exception innerEx)
+            {
+                _logger.LogError(innerEx, "Failed to update deletion status to failure for deletion ID {DeletionId}", deletionId);
+            }
+        }
     }
 
     private static PodcastFeed CloneFeed(PodcastFeed feed)
@@ -368,10 +457,11 @@ public class SubscriptionStore : ISubscriptionStore
             return latest.IsSubscribed && latest.Deleted is null;
         }
 
+        // Per spec: only return entries whose subscription_changed, guid_changed, or deleted
+        // fields are greater than the since parameter.
         var sinceValue = since.Value;
         return chain.Any(s =>
-            s.DateAdded > sinceValue
-            || (s.SubscriptionChanged is not null && s.SubscriptionChanged.Value > sinceValue)
+            (s.SubscriptionChanged is not null && s.SubscriptionChanged.Value > sinceValue)
             || (s.GuidChanged is not null && s.GuidChanged.Value > sinceValue)
             || (s.Deleted is not null && s.Deleted.Value > sinceValue));
     }

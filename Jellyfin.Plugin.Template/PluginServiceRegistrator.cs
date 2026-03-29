@@ -9,6 +9,7 @@ using MediaBrowser.Controller;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Plugin.Template;
@@ -30,6 +31,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             var dataDir = Path.Combine(appPaths.DataPath, "podcasts");
             Directory.CreateDirectory(dataDir);
             options.UseSqlite($"Data Source={Path.Combine(dataDir, "podcasts.db")}");
+            options.ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
         });
 
         serviceCollection.AddSingleton<ISubscriptionStore, SubscriptionStore>();

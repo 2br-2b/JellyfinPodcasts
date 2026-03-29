@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.Template.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Jellyfin.Plugin.Template.Data;
 
@@ -28,6 +29,13 @@ public class PodcastsDbContext : DbContext
 
     /// <summary>Gets the async deletion request records.</summary>
     public DbSet<DeletionRequest> DeletionRequests => Set<DeletionRequest>();
+
+    /// <inheritdoc />
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
+    }
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -64,10 +72,10 @@ public class PodcastsDbContext : DbContext
             entity.HasKey(p => p.Id);
             entity.Property(p => p.UserId).IsRequired();
             entity.Property(p => p.Label).IsRequired();
+            entity.Property(p => p.Kind).IsRequired().HasDefaultValue(AppPasswordKinds.OpenPodcastApi);
             entity.Property(p => p.TokenHash).IsRequired();
             entity.Property(p => p.CreatedAt).HasColumnType("TEXT").IsRequired();
             entity.Property(p => p.LastUsedAt).HasColumnType("TEXT");
-            entity.HasIndex(p => p.TokenHash).IsUnique();
         });
 
         modelBuilder.Entity<DeletionRequest>(entity =>

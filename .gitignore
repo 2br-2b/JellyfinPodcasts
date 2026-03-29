@@ -3,3 +3,6 @@ obj/
 .vs/
 .idea/
 artifacts
+.dotnet/
+.nuget/
+.localappdata/

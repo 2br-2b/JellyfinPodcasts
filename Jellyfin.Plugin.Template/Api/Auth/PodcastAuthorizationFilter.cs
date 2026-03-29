@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.Template.Models;
 using Jellyfin.Plugin.Template.Services;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
@@ -97,7 +98,10 @@ public class PodcastAuthorizationFilter : IAsyncAuthorizationFilter
             var apiKey = apiKeyValues.ToString();
             if (!string.IsNullOrWhiteSpace(apiKey))
             {
-                var password = await _appPasswordStore.ValidateTokenAsync(apiKey, cancellationToken)
+                var password = await _appPasswordStore.ValidateTokenAsync(
+                        apiKey,
+                        AppPasswordKinds.OpenPodcastApi,
+                        cancellationToken)
                     .ConfigureAwait(false);
                 if (password is not null)
                 {
@@ -176,7 +180,10 @@ public class PodcastAuthorizationFilter : IAsyncAuthorizationFilter
                 return authenticatedUser.Id;
             }
 
-            var appPassword = await _appPasswordStore.ValidateTokenAsync(secret, cancellationToken)
+            var appPassword = await _appPasswordStore.ValidateTokenAsync(
+                    secret,
+                    AppPasswordKinds.GPodder,
+                    cancellationToken)
                 .ConfigureAwait(false);
             if (appPassword?.UserId == user.Id)
             {

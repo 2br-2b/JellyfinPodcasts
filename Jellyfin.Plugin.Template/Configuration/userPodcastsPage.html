@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Podcasts</title>
+</head>
+<body>
+    <div id="UserPodcastsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <style>
+                    #UserPodcastsPage .podcastsCard {
+                        background: rgba(255, 255, 255, 0.03);
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-radius: 14px;
+                        margin-bottom: 1.5em;
+                        padding: 1.25em;
+                    }
+
+                    #UserPodcastsPage .podcastsHeader {
+                        align-items: start;
+                        display: flex;
+                        gap: 1em;
+                        justify-content: space-between;
+                        margin-bottom: 1em;
+                    }
+
+                    #UserPodcastsPage .podcastsHeader h2,
+                    #UserPodcastsPage .podcastsHeader h3 {
+                        margin: 0;
+                    }
+
+                    #UserPodcastsPage .podcastsMuted {
+                        opacity: 0.75;
+                    }
+
+                    #UserPodcastsPage .podcastsList {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.75em;
+                    }
+
+                    #UserPodcastsPage .podcastsRow {
+                        align-items: center;
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-radius: 12px;
+                        display: flex;
+                        gap: 1em;
+                        justify-content: space-between;
+                        padding: 0.9em 1em;
+                    }
+
+                    #UserPodcastsPage .podcastsRowMain {
+                        min-width: 0;
+                    }
+
+                    #UserPodcastsPage .podcastsRowTitle {
+                        font-size: 1rem;
+                        font-weight: 600;
+                        margin-bottom: 0.2em;
+                        word-break: break-word;
+                    }
+
+                    #UserPodcastsPage .podcastsMeta {
+                        font-size: 0.92rem;
+                        opacity: 0.75;
+                        word-break: break-word;
+                    }
+
+                    #UserPodcastsPage .podcastsActions {
+                        display: flex;
+                        flex-shrink: 0;
+                        gap: 0.5em;
+                    }
+
+                    #UserPodcastsPage .podcastsToken {
+                        background: rgba(0, 0, 0, 0.22);
+                        border-radius: 10px;
+                        margin-top: 1em;
+                        padding: 1em;
+                    }
+
+                    #UserPodcastsPage .podcastsToken code {
+                        display: block;
+                        margin-top: 0.5em;
+                        overflow-wrap: anywhere;
+                        white-space: pre-wrap;
+                    }
+
+                    @media (max-width: 720px) {
+                        #UserPodcastsPage .podcastsHeader,
+                        #UserPodcastsPage .podcastsRow {
+                            align-items: stretch;
+                            flex-direction: column;
+                        }
+
+                        #UserPodcastsPage .podcastsActions {
+                            justify-content: flex-start;
+                        }
+                    }
+                </style>
+
+                <div class="verticalSection">
+                    <h1>Podcasts</h1>
+                    <p class="podcastsMuted">Manage your own podcast subscriptions and generate podcast-specific app passwords for Open Podcast API and gPodder clients.</p>
+                </div>
+
+                <div class="podcastsCard">
+                    <div class="podcastsHeader">
+                        <div>
+                            <h2>Add Podcast</h2>
+                            <div class="podcastsMuted">Adding an existing feed reuses the shared podcast entry instead of creating a duplicate feed record.</div>
+                        </div>
+                    </div>
+                    <form id="AddPodcastForm">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="PodcastFeedUrl">Podcast feed URL</label>
+                            <input id="PodcastFeedUrl" name="PodcastFeedUrl" type="url" is="emby-input" required />
+                            <div class="fieldDescription">Paste the RSS feed URL for the podcast you want to follow.</div>
+                        </div>
+                        <div>
+                            <button is="emby-button" type="submit" class="raised button-submit">
+                                <span>Add Podcast</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="podcastsCard">
+                    <div class="podcastsHeader">
+                        <div>
+                            <h2>Your Podcasts</h2>
+                            <div id="SubscriptionsSummary" class="podcastsMuted">Loading subscriptions...</div>
+                        </div>
+                    </div>
+                    <div id="SubscriptionsList" class="podcastsList"></div>
+                </div>
+
+                <div class="podcastsCard">
+                    <div class="podcastsHeader">
+                        <div>
+                            <h2>Podcast App Passwords</h2>
+                            <div class="podcastsMuted">Create a dedicated token for a podcast client instead of using your main Jellyfin password.</div>
+                        </div>
+                    </div>
+                    <form id="CreateAppPasswordForm">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="AppPasswordLabel">Label</label>
+                            <input id="AppPasswordLabel" name="AppPasswordLabel" type="text" is="emby-input" required />
+                            <div class="fieldDescription">Give this token a recognizable name like "Phone app" or "Desktop gPodder".</div>
+                        </div>
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="AppPasswordKind">Use for</label>
+                            <select is="emby-select" id="AppPasswordKind" name="AppPasswordKind" class="emby-select-withcolor emby-select">
+                                <option value="openpodcastapi">Open Podcast API</option>
+                                <option value="gpodder">gPodder</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button is="emby-button" type="submit" class="raised button-submit">
+                                <span>Create App Password</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="CreatedTokenPanel" class="podcastsToken" style="display:none;">
+                        <strong>Copy this token now.</strong>
+                        <div class="podcastsMuted">For safety, the plaintext token is only shown once.</div>
+                        <code id="CreatedTokenValue"></code>
+                    </div>
+                    <div id="AppPasswordsList" class="podcastsList" style="margin-top:1em;"></div>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var page = document.querySelector('#UserPodcastsPage');
+                var addPodcastForm = document.querySelector('#AddPodcastForm');
+                var createPasswordForm = document.querySelector('#CreateAppPasswordForm');
+                var subscriptionsList = document.querySelector('#SubscriptionsList');
+                var subscriptionsSummary = document.querySelector('#SubscriptionsSummary');
+                var appPasswordsList = document.querySelector('#AppPasswordsList');
+                var createdTokenPanel = document.querySelector('#CreatedTokenPanel');
+                var createdTokenValue = document.querySelector('#CreatedTokenValue');
+                var standaloneAuth = null;
+
+                function escapeHtml(value) {
+                    return String(value || '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+                }
+
+                function showLoading() {
+                    if (window.Dashboard && typeof Dashboard.showLoadingMsg === 'function') {
+                        Dashboard.showLoadingMsg();
+                    }
+                }
+
+                function hideLoading() {
+                    if (window.Dashboard && typeof Dashboard.hideLoadingMsg === 'function') {
+                        Dashboard.hideLoadingMsg();
+                    }
+                }
+
+                function normalizeUrl(url) {
+                    return String(url || '')
+                        .trim()
+                        .replace(/\/+$/, '')
+                        .toLowerCase();
+                }
+
+                function getOfficialClientInfo() {
+                    var existingDeviceId = window.localStorage.getItem('jellyfin-plugin-podcasts-device-id');
+                    if (!existingDeviceId) {
+                        existingDeviceId = (window.crypto && typeof window.crypto.randomUUID === 'function')
+                            ? window.crypto.randomUUID()
+                            : 'podcasts-' + String(Date.now());
+                        window.localStorage.setItem('jellyfin-plugin-podcasts-device-id', existingDeviceId);
+                    }
+
+                    return {
+                        appName: 'Jellyfin Podcasts',
+                        appVersion: '1.0.0',
+                        deviceName: navigator.userAgent ? navigator.userAgent.substring(0, 120) : 'Web Browser',
+                        deviceId: existingDeviceId
+                    };
+                }
+
+                function getServerAddress(server) {
+                    if (!server) {
+                        return null;
+                    }
+
+                    if (server.LastConnectionMode === 2 && server.ManualAddress) {
+                        return server.ManualAddress;
+                    }
+
+                    if (server.LastConnectionMode === 0 && server.LocalAddress) {
+                        return server.LocalAddress;
+                    }
+
+                    if (server.LastConnectionMode === 1 && server.RemoteAddress) {
+                        return server.RemoteAddress;
+                    }
+
+                    return server.ManualAddress || server.LocalAddress || server.RemoteAddress || null;
+                }
+
+                function getStandaloneAuthentication() {
+                    if (standaloneAuth) {
+                        return standaloneAuth;
+                    }
+
+                    var rawCredentials = window.localStorage.getItem('jellyfin_credentials');
+                    if (!rawCredentials) {
+                        throw new Error('No Jellyfin browser credentials were found. Sign in to Jellyfin Web first.');
+                    }
+
+                    var credentials = JSON.parse(rawCredentials || '{}');
+                    var servers = Array.isArray(credentials.Servers) ? credentials.Servers.slice() : [];
+                    if (!servers.length) {
+                        throw new Error('No saved Jellyfin servers were found in this browser session.');
+                    }
+
+                    var currentOrigin = normalizeUrl(window.location.origin);
+                    var matchingServer = null;
+                    for (var i = 0; i < servers.length; i++) {
+                        var candidate = servers[i];
+                        var addresses = [
+                            normalizeUrl(candidate.ManualAddress),
+                            normalizeUrl(candidate.LocalAddress),
+                            normalizeUrl(candidate.RemoteAddress)
+                        ];
+
+                        if (addresses.indexOf(currentOrigin) !== -1) {
+                            matchingServer = candidate;
+                            break;
+                        }
+                    }
+
+                    if (!matchingServer) {
+                        servers.sort(function (left, right) {
+                            return (right.DateLastAccessed || 0) - (left.DateLastAccessed || 0);
+                        });
+                        matchingServer = servers[0];
+                    }
+
+                    if (!matchingServer || !matchingServer.AccessToken || !matchingServer.UserId) {
+                        throw new Error('The saved Jellyfin session for this server is missing an access token.');
+                    }
+
+                    var serverAddress = getServerAddress(matchingServer);
+                    if (!serverAddress) {
+                        throw new Error('The saved Jellyfin server entry does not include a usable server address.');
+                    }
+
+                    standaloneAuth = {
+                        accessToken: matchingServer.AccessToken,
+                        userId: matchingServer.UserId,
+                        serverAddress: serverAddress,
+                        clientInfo: getOfficialClientInfo()
+                    };
+
+                    return standaloneAuth;
+                }
+
+                function getAuthorizationHeaderValue(authentication) {
+                    var parts = [];
+                    if (authentication.clientInfo.appName) {
+                        parts.push('Client="' + authentication.clientInfo.appName + '"');
+                    }
+
+                    if (authentication.clientInfo.deviceName) {
+                        parts.push('Device="' + authentication.clientInfo.deviceName.replace(/"/g, '') + '"');
+                    }
+
+                    if (authentication.clientInfo.deviceId) {
+                        parts.push('DeviceId="' + authentication.clientInfo.deviceId + '"');
+                    }
+
+                    if (authentication.clientInfo.appVersion) {
+                        parts.push('Version="' + authentication.clientInfo.appVersion + '"');
+                    }
+
+                    parts.push('Token="' + authentication.accessToken + '"');
+                    return 'MediaBrowser ' + parts.join(', ');
+                }
+
+                function request(url, method, body) {
+                    if (window.ApiClient && typeof ApiClient.fetch === 'function' && typeof ApiClient.getUrl === 'function') {
+                        return ApiClient.fetch({
+                            url: ApiClient.getUrl(url),
+                            type: method,
+                            dataType: 'json',
+                            contentType: 'application/json',
+                            data: body ? JSON.stringify(body) : null,
+                            headers: { accept: 'application/json' }
+                        }).then(function (response) {
+                            if (response === undefined || response === null || response === '') {
+                                return null;
+                            }
+
+                            if (typeof response.json === 'function') {
+                                return response.json();
+                            }
+
+                            return response;
+                        });
+                    }
+
+                    var authentication;
+                    try {
+                        authentication = getStandaloneAuthentication();
+                    } catch (error) {
+                        return Promise.reject(error);
+                    }
+
+                    var requestUrl = authentication.serverAddress.replace(/\/+$/, '') + '/' + String(url).replace(/^\/+/, '');
+
+                    var headers = {
+                        accept: 'application/json',
+                        Authorization: getAuthorizationHeaderValue(authentication)
+                    };
+
+                    if (body) {
+                        headers['Content-Type'] = 'application/json';
+                    }
+
+                    return fetch(requestUrl, {
+                        method: method,
+                        headers: headers,
+                        body: body ? JSON.stringify(body) : null,
+                        credentials: 'same-origin'
+                    }).then(function (response) {
+                        if (!response.ok) {
+                            throw response;
+                        }
+
+                        if (response.status === 204) {
+                            return null;
+                        }
+
+                        return response.text().then(function (text) {
+                            return text ? JSON.parse(text) : null;
+                        });
+                    });
+                }
+
+                function showError(error) {
+                    if (error && typeof error.text === 'function') {
+                        error.text().then(function (message) {
+                            Dashboard.alert({
+                                title: error.statusText || 'Request failed',
+                                message: message || 'The request could not be completed.'
+                            });
+                        });
+                        return;
+                    }
+
+                    var title = 'Request failed';
+                    var message = (error && error.message) ? error.message : 'The request could not be completed.';
+                    if (window.Dashboard && typeof Dashboard.alert === 'function') {
+                        Dashboard.alert({
+                            title: title,
+                            message: message
+                        });
+                        return;
+                    }
+
+                    window.alert(title + '\n\n' + message);
+                }
+
+                function formatDate(value) {
+                    if (!value) {
+                        return 'Never used';
+                    }
+
+                    return new Date(value).toLocaleString();
+                }
+
+                function passwordKindLabel(kind) {
+                    if (kind === 'gpodder') {
+                        return 'gPodder';
+                    }
+
+                    return 'Open Podcast API';
+                }
+
+                function renderSubscriptions(items) {
+                    if (!items || !items.length) {
+                        subscriptionsSummary.textContent = 'You are not subscribed to any podcasts yet.';
+                        subscriptionsList.innerHTML = '<div class="podcastsMuted">No podcasts added yet.</div>';
+                        return;
+                    }
+
+                    subscriptionsSummary.textContent = items.length + (items.length === 1 ? ' subscription' : ' subscriptions');
+                    subscriptionsList.innerHTML = items.map(function (item) {
+                        var guidText = item.new_guid || item.guid;
+                        return '' +
+                            '<div class="podcastsRow">' +
+                                '<div class="podcastsRowMain">' +
+                                    '<div class="podcastsRowTitle">' + escapeHtml(item.feed_url) + '</div>' +
+                                    '<div class="podcastsMeta">GUID: ' + escapeHtml(guidText) + '</div>' +
+                                '</div>' +
+                                '<div class="podcastsActions">' +
+                                    '<button is="emby-button" type="button" class="podcastDeleteButton" data-guid="' + escapeHtml(item.guid) + '"><span>Remove</span></button>' +
+                                '</div>' +
+                            '</div>';
+                    }).join('');
+                }
+
+                function renderAppPasswords(items) {
+                    if (!items || !items.length) {
+                        appPasswordsList.innerHTML = '<div class="podcastsMuted">No app passwords created yet.</div>';
+                        return;
+                    }
+
+                    appPasswordsList.innerHTML = items.map(function (item) {
+                        return '' +
+                            '<div class="podcastsRow">' +
+                                '<div class="podcastsRowMain">' +
+                                    '<div class="podcastsRowTitle">' + escapeHtml(item.label) + '</div>' +
+                                    '<div class="podcastsMeta">' + escapeHtml(passwordKindLabel(item.kind)) + ' | Created ' + escapeHtml(formatDate(item.created_at)) + ' | Last used ' + escapeHtml(formatDate(item.last_used_at)) + '</div>' +
+                                '</div>' +
+                                '<div class="podcastsActions">' +
+                                    '<button is="emby-button" type="button" class="appPasswordDeleteButton" data-id="' + escapeHtml(item.id) + '"><span>Delete</span></button>' +
+                                '</div>' +
+                            '</div>';
+                    }).join('');
+                }
+
+                function loadPageData() {
+                    showLoading();
+
+                    return Promise.all([
+                        request('Users/Me/Podcasts/Subscriptions', 'GET'),
+                        request('Users/Me/Podcasts/AppPasswords', 'GET')
+                    ]).then(function (results) {
+                        renderSubscriptions(results[0] || []);
+                        renderAppPasswords(results[1] || []);
+                        hideLoading();
+                    }, function (error) {
+                        hideLoading();
+                        showError(error);
+                    });
+                }
+
+                if (window.jQuery && typeof window.jQuery === 'function') {
+                    window.jQuery(page).on('pageshow', function () {
+                        loadPageData();
+                    });
+                } else {
+                    loadPageData();
+                }
+
+                addPodcastForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    createdTokenPanel.style.display = 'none';
+                    showLoading();
+
+                    request('Users/Me/Podcasts/Subscriptions', 'POST', {
+                        feed_url: document.querySelector('#PodcastFeedUrl').value
+                    }).then(function () {
+                        document.querySelector('#PodcastFeedUrl').value = '';
+                        return loadPageData();
+                    }, function (error) {
+                        hideLoading();
+                        showError(error);
+                    });
+
+                    return false;
+                });
+
+                createPasswordForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    showLoading();
+
+                    request('Users/Me/Podcasts/AppPasswords', 'POST', {
+                        label: document.querySelector('#AppPasswordLabel').value,
+                        kind: document.querySelector('#AppPasswordKind').value
+                    }).then(function (result) {
+                        document.querySelector('#AppPasswordLabel').value = '';
+                        createdTokenValue.textContent = result.token;
+                        createdTokenPanel.style.display = 'block';
+                        return loadPageData();
+                    }, function (error) {
+                        hideLoading();
+                        showError(error);
+                    });
+
+                    return false;
+                });
+
+                page.addEventListener('click', function (event) {
+                    var deletePodcastButton = event.target.closest('.podcastDeleteButton');
+                    if (deletePodcastButton) {
+                        showLoading();
+                        request('Users/Me/Podcasts/Subscriptions/' + encodeURIComponent(deletePodcastButton.getAttribute('data-guid')), 'DELETE')
+                            .then(loadPageData, function (error) {
+                                hideLoading();
+                                showError(error);
+                            });
+                        return;
+                    }
+
+                    var deletePasswordButton = event.target.closest('.appPasswordDeleteButton');
+                    if (deletePasswordButton) {
+                        showLoading();
+                        request('Users/Me/Podcasts/AppPasswords/' + encodeURIComponent(deletePasswordButton.getAttribute('data-id')), 'DELETE')
+                            .then(loadPageData, function (error) {
+                                hideLoading();
+                                showError(error);
+                            });
+                    }
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

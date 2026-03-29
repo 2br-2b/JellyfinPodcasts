@@ -45,6 +45,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             {
                 Name = Name,
                 EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", GetType().Namespace)
+            },
+            new PluginPageInfo
+            {
+                Name = "JellyfinPodcastsUserSettings",
+                DisplayName = "Podcasts",
+                EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.userPodcastsPage.html", GetType().Namespace),
+                EnableInMainMenu = true,
+                MenuSection = "user",
+                MenuIcon = "rss_feed"
             }
         ];
     }

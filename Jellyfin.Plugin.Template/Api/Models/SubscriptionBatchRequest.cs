@@ -180,6 +180,54 @@ public class DeletionStatusResponse
     [JsonPropertyName("message")]
     public string? Message { get; set; }
 }
+
+/// <summary>User app password create request.</summary>
+public class UserAppPasswordCreateRequest
+{
+    /// <summary>Gets or sets the app password label.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the app password kind.</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+}
+
+/// <summary>User app password response.</summary>
+public class UserAppPasswordResponse
+{
+    /// <summary>Gets or sets the app password identifier.</summary>
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
+
+    /// <summary>Gets or sets the app password label.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the app password kind.</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets when the password was created.</summary>
+    [JsonPropertyName("created_at")]
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>Gets or sets when the password was last used.</summary>
+    [JsonPropertyName("last_used_at")]
+    public DateTime? LastUsedAt { get; set; }
+}
+
+/// <summary>User app password create response.</summary>
+public class UserAppPasswordCreateResponse
+{
+    /// <summary>Gets or sets the plaintext token.</summary>
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the created app password.</summary>
+    [JsonPropertyName("password")]
+    public UserAppPasswordResponse Password { get; set; } = new();
+}
 #pragma warning restore CA2227
 #pragma warning restore CA1002
 #pragma warning restore SA1649

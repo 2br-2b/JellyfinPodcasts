@@ -37,7 +37,9 @@
 
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
+    <None Remove="Configuration\userPodcastsPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Configuration\userPodcastsPage.html" />
   </ItemGroup>
 
   <ItemGroup>

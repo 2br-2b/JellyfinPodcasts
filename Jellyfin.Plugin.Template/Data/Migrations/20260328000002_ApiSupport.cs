@@ -11,7 +11,6 @@ public partial class ApiSupport : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        // ── UserSubscription new columns ─────────────────────────────────────
         migrationBuilder.AddColumn<bool>(
             name: "IsSubscribed",
             table: "Subscriptions",
@@ -43,7 +42,6 @@ public partial class ApiSupport : Migration
             type: "TEXT",
             nullable: true);
 
-        // ── AppPasswords table ───────────────────────────────────────────────
         migrationBuilder.CreateTable(
             name: "AppPasswords",
             columns: table => new
@@ -51,6 +49,7 @@ public partial class ApiSupport : Migration
                 Id = table.Column<Guid>(type: "TEXT", nullable: false),
                 UserId = table.Column<Guid>(type: "TEXT", nullable: false),
                 Label = table.Column<string>(type: "TEXT", nullable: false),
+                Kind = table.Column<string>(type: "TEXT", nullable: false, defaultValue: "openpodcastapi"),
                 TokenHash = table.Column<string>(type: "TEXT", nullable: false),
                 CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                 LastUsedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
@@ -60,13 +59,6 @@ public partial class ApiSupport : Migration
                 table.PrimaryKey("PK_AppPasswords", x => x.Id);
             });
 
-        migrationBuilder.CreateIndex(
-            name: "IX_AppPasswords_TokenHash",
-            table: "AppPasswords",
-            column: "TokenHash",
-            unique: true);
-
-        // ── DeletionRequests table ───────────────────────────────────────────
         migrationBuilder.CreateTable(
             name: "DeletionRequests",
             columns: table => new
