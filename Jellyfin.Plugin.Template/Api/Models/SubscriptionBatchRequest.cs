@@ -77,6 +77,74 @@ public class SubscriptionResponse
     public DateTime? Deleted { get; set; }
 }
 
+/// <summary>
+/// User-page-specific subscription payload.
+/// Keep OpenPodcastAPI responses on <see cref="SubscriptionResponse"/> spec-compliant;
+/// Jellyfin UI-only fields belong here instead.
+/// </summary>
+public class UserPodcastSubscriptionResponse : SubscriptionResponse
+{
+    /// <summary>Gets or sets the podcast title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>Gets or sets the podcast description.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Gets or sets the podcast image URL.</summary>
+    [JsonPropertyName("image_url")]
+    public string? ImageUrl { get; set; }
+
+    /// <summary>Gets or sets the podcast home page URL.</summary>
+    [JsonPropertyName("home_page_url")]
+    public string? HomePageUrl { get; set; }
+
+    /// <summary>Gets or sets the podcast media type.</summary>
+    [JsonPropertyName("media_type")]
+    public string? MediaType { get; set; }
+
+    /// <summary>Gets or sets the parsed episode count when available.</summary>
+    [JsonPropertyName("episode_count")]
+    public int? EpisodeCount { get; set; }
+
+    /// <summary>Gets or sets recent parsed episodes when available.</summary>
+    [JsonPropertyName("recent_episodes")]
+    public IReadOnlyList<UserPodcastEpisodeResponse> RecentEpisodes { get; set; } = [];
+}
+
+/// <summary>Recent episode details for the Jellyfin user podcasts page.</summary>
+public class UserPodcastEpisodeResponse
+{
+    /// <summary>Gets or sets the episode guid.</summary>
+    [JsonPropertyName("guid")]
+    public string Guid { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the episode title.</summary>
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the episode media URL.</summary>
+    [JsonPropertyName("media_url")]
+    public string MediaUrl { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the episode MIME type.</summary>
+    [JsonPropertyName("mime_type")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Gets or sets the publication date.</summary>
+    [JsonPropertyName("published_at")]
+    public DateTime? PublishedAt { get; set; }
+
+    /// <summary>Gets or sets the duration in ticks.</summary>
+    [JsonPropertyName("duration_ticks")]
+    public long? DurationTicks { get; set; }
+
+    /// <summary>Gets or sets the episode image URL.</summary>
+    [JsonPropertyName("image_url")]
+    public string? ImageUrl { get; set; }
+}
+
 /// <summary>Paged subscription list response.</summary>
 public class SubscriptionListResponse
 {

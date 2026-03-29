@@ -41,17 +41,36 @@
                     }
 
                     #UserPodcastsPage .podcastsRow {
-                        align-items: center;
                         border: 1px solid rgba(255, 255, 255, 0.08);
                         border-radius: 12px;
+                        display: block;
+                        padding: 0.9em 1em;
+                    }
+
+                    #UserPodcastsPage .podcastsRowHeader {
+                        align-items: center;
                         display: flex;
                         gap: 1em;
                         justify-content: space-between;
-                        padding: 0.9em 1em;
                     }
 
                     #UserPodcastsPage .podcastsRowMain {
                         min-width: 0;
+                    }
+
+                    #UserPodcastsPage .podcastsFeedHeader {
+                        align-items: flex-start;
+                        display: flex;
+                        gap: 1em;
+                        min-width: 0;
+                    }
+
+                    #UserPodcastsPage .podcastsArtwork {
+                        border-radius: 12px;
+                        flex-shrink: 0;
+                        height: 72px;
+                        object-fit: cover;
+                        width: 72px;
                     }
 
                     #UserPodcastsPage .podcastsRowTitle {
@@ -67,10 +86,67 @@
                         word-break: break-word;
                     }
 
+                    #UserPodcastsPage .podcastsDescription {
+                        margin-top: 0.6em;
+                        opacity: 0.9;
+                    }
+
+                    #UserPodcastsPage .podcastsBadges {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 0.5em;
+                        margin-top: 0.6em;
+                    }
+
+                    #UserPodcastsPage .podcastsBadge {
+                        background: rgba(255, 255, 255, 0.08);
+                        border-radius: 999px;
+                        font-size: 0.82rem;
+                        padding: 0.28em 0.7em;
+                    }
+
                     #UserPodcastsPage .podcastsActions {
                         display: flex;
                         flex-shrink: 0;
                         gap: 0.5em;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodes {
+                        margin-top: 1em;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodesTitle {
+                        font-size: 0.95rem;
+                        font-weight: 600;
+                        margin-bottom: 0.5em;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodeTable {
+                        border-collapse: collapse;
+                        width: 100%;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodeTable th,
+                    #UserPodcastsPage .podcastsEpisodeTable td {
+                        border-top: 1px solid rgba(255, 255, 255, 0.08);
+                        padding: 0.7em 0.5em;
+                        text-align: left;
+                        vertical-align: top;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodeTable th {
+                        font-size: 0.85rem;
+                        opacity: 0.72;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodeTitle {
+                        font-weight: 600;
+                    }
+
+                    #UserPodcastsPage .podcastsEpisodeLink {
+                        color: inherit;
+                        opacity: 0.8;
+                        word-break: break-all;
                     }
 
                     #UserPodcastsPage .podcastsToken {
@@ -89,13 +165,29 @@
 
                     @media (max-width: 720px) {
                         #UserPodcastsPage .podcastsHeader,
-                        #UserPodcastsPage .podcastsRow {
+                        #UserPodcastsPage .podcastsRowHeader {
                             align-items: stretch;
+                            flex-direction: column;
+                        }
+
+                        #UserPodcastsPage .podcastsFeedHeader {
                             flex-direction: column;
                         }
 
                         #UserPodcastsPage .podcastsActions {
                             justify-content: flex-start;
+                        }
+
+                        #UserPodcastsPage .podcastsEpisodeTable,
+                        #UserPodcastsPage .podcastsEpisodeTable tbody,
+                        #UserPodcastsPage .podcastsEpisodeTable tr,
+                        #UserPodcastsPage .podcastsEpisodeTable td {
+                            display: block;
+                            width: 100%;
+                        }
+
+                        #UserPodcastsPage .podcastsEpisodeTable thead {
+                            display: none;
                         }
                     }
                 </style>
@@ -420,12 +512,72 @@
                     return new Date(value).toLocaleString();
                 }
 
+                function formatPublishedDate(value) {
+                    if (!value) {
+                        return 'Unknown date';
+                    }
+
+                    return new Date(value).toLocaleDateString();
+                }
+
+                function formatDuration(ticks) {
+                    if (!ticks || ticks < 0) {
+                        return '';
+                    }
+
+                    var totalSeconds = Math.floor(ticks / 10000000);
+                    var hours = Math.floor(totalSeconds / 3600);
+                    var minutes = Math.floor((totalSeconds % 3600) / 60);
+                    var seconds = totalSeconds % 60;
+
+                    if (hours > 0) {
+                        return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+                    }
+
+                    return minutes + ':' + String(seconds).padStart(2, '0');
+                }
+
                 function passwordKindLabel(kind) {
                     if (kind === 'gpodder') {
                         return 'gPodder';
                     }
 
                     return 'Open Podcast API';
+                }
+
+                function renderEpisodesTable(item) {
+                    var episodes = Array.isArray(item.recent_episodes) ? item.recent_episodes : [];
+                    if (!episodes.length) {
+                        return '<div class="podcastsMuted podcastsEpisodes">No episodes were parsed from this feed yet.</div>';
+                    }
+
+                    return '' +
+                        '<div class="podcastsEpisodes">' +
+                            '<div class="podcastsEpisodesTitle">Recent Episodes</div>' +
+                            '<table class="podcastsEpisodeTable">' +
+                                '<thead>' +
+                                    '<tr>' +
+                                        '<th>Episode</th>' +
+                                        '<th>Published</th>' +
+                                        '<th>Length</th>' +
+                                        '<th>Media</th>' +
+                                    '</tr>' +
+                                '</thead>' +
+                                '<tbody>' +
+                                    episodes.map(function (episode) {
+                                        return '' +
+                                            '<tr>' +
+                                                '<td>' +
+                                                    '<div class="podcastsEpisodeTitle">' + escapeHtml(episode.title || 'Untitled episode') + '</div>' +
+                                                '</td>' +
+                                                '<td>' + escapeHtml(formatPublishedDate(episode.published_at)) + '</td>' +
+                                                '<td>' + escapeHtml(formatDuration(episode.duration_ticks) || 'Unknown') + '</td>' +
+                                                '<td><a class="podcastsEpisodeLink" href="' + escapeHtml(episode.media_url) + '" target="_blank" rel="noreferrer">Open media</a></td>' +
+                                            '</tr>';
+                                    }).join('') +
+                                '</tbody>' +
+                            '</table>' +
+                        '</div>';
                 }
 
                 function renderSubscriptions(items) {
@@ -438,15 +590,33 @@
                     subscriptionsSummary.textContent = items.length + (items.length === 1 ? ' subscription' : ' subscriptions');
                     subscriptionsList.innerHTML = items.map(function (item) {
                         var guidText = item.new_guid || item.guid;
+                        var mediaType = item.media_type === 'video' ? 'Vodcast' : 'Podcast';
+                        var episodeCount = item.episode_count;
+                        var artwork = item.image_url
+                            ? '<img class="podcastsArtwork" src="' + escapeHtml(item.image_url) + '" alt="" />'
+                            : '';
                         return '' +
                             '<div class="podcastsRow">' +
-                                '<div class="podcastsRowMain">' +
-                                    '<div class="podcastsRowTitle">' + escapeHtml(item.feed_url) + '</div>' +
-                                    '<div class="podcastsMeta">GUID: ' + escapeHtml(guidText) + '</div>' +
+                                '<div class="podcastsRowHeader">' +
+                                    '<div class="podcastsFeedHeader">' +
+                                        artwork +
+                                        '<div class="podcastsRowMain">' +
+                                            '<div class="podcastsRowTitle">' + escapeHtml(item.title || item.feed_url) + '</div>' +
+                                            '<div class="podcastsMeta">GUID: ' + escapeHtml(guidText) + '</div>' +
+                                            '<div class="podcastsMeta">' + escapeHtml(item.feed_url) + '</div>' +
+                                            '<div class="podcastsBadges">' +
+                                                '<span class="podcastsBadge">' + escapeHtml(mediaType) + '</span>' +
+                                                '<span class="podcastsBadge">' + escapeHtml(String(episodeCount == null ? 0 : episodeCount)) + ' episodes</span>' +
+                                            '</div>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="podcastsActions">' +
+                                        '<button is="emby-button" type="button" class="podcastRefreshButton" data-guid="' + escapeHtml(item.guid) + '"><span>Refresh</span></button>' +
+                                        '<button is="emby-button" type="button" class="podcastDeleteButton" data-guid="' + escapeHtml(item.guid) + '"><span>Remove</span></button>' +
+                                    '</div>' +
                                 '</div>' +
-                                '<div class="podcastsActions">' +
-                                    '<button is="emby-button" type="button" class="podcastDeleteButton" data-guid="' + escapeHtml(item.guid) + '"><span>Remove</span></button>' +
-                                '</div>' +
+                                '<div class="podcastsDescription">' + escapeHtml(item.description || 'No description available yet.') + '</div>' +
+                                renderEpisodesTable(item) +
                             '</div>';
                     }).join('');
                 }
@@ -534,6 +704,17 @@
                 });
 
                 page.addEventListener('click', function (event) {
+                    var refreshPodcastButton = event.target.closest('.podcastRefreshButton');
+                    if (refreshPodcastButton) {
+                        showLoading();
+                        request('Users/Me/Podcasts/Subscriptions/' + encodeURIComponent(refreshPodcastButton.getAttribute('data-guid')) + '/Refresh', 'POST')
+                            .then(loadPageData, function (error) {
+                                hideLoading();
+                                showError(error);
+                            });
+                        return;
+                    }
+
                     var deletePodcastButton = event.target.closest('.podcastDeleteButton');
                     if (deletePodcastButton) {
                         showLoading();
